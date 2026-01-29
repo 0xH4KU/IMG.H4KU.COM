@@ -7,5 +7,4 @@ binding = "R2"
 bucket_name = "img-h4ku"
 
 [vars]
-ADMIN_PASSWORD = "change-me-in-dashboard"  # Set in Cloudflare Dashboard for production
 DOMAINS = "img.h4ku.com,img.lum.bio"

@@ -2,10 +2,20 @@
 
 Complete guide to deploy IMG on Cloudflare Pages with R2 storage.
 
+## Domain Architecture
+
+R2 and Pages cannot share the same domain. Use separate subdomains:
+
+| Service | Domain | Purpose |
+|---------|--------|---------|
+| R2 Custom Domain | `img.h4ku.com` | Direct image serving |
+| R2 Custom Domain | `img.lum.bio` | Alternative image domain |
+| Cloudflare Pages | `admin.img.h4ku.com` | Admin panel |
+
 ## Prerequisites
 
 - Cloudflare account
-- Domain added to Cloudflare (for custom domain)
+- Domain added to Cloudflare
 - Git repository (GitHub/GitLab) for CI/CD deployment
 
 ## Step 1: Create R2 Bucket
@@ -17,18 +27,16 @@ Complete guide to deploy IMG on Cloudflare Pages with R2 storage.
 5. Select region (choose closest to your users)
 6. Click **Create bucket**
 
-## Step 2: Configure R2 Custom Domain
+## Step 2: Configure R2 Custom Domains
 
 This allows direct image access without Worker overhead.
 
 1. In R2 bucket details, click **Settings**
 2. Find **Custom Domains** section
 3. Click **Connect Domain**
-4. Enter your domain (e.g., `img.h4ku.com`)
-5. Cloudflare auto-configures DNS and SSL
-6. Wait for status to show **Active**
-
-Repeat for additional domains if needed.
+4. Enter `img.h4ku.com`
+5. Wait for status to show **Active**
+6. Repeat for `img.lum.bio` if needed
 
 ## Step 3: Create Pages Project
 
@@ -47,10 +55,7 @@ Repeat for additional domains if needed.
 ### Option B: Direct Upload
 
 ```bash
-# Build locally
 npm run build
-
-# Deploy via Wrangler CLI
 npx wrangler pages deploy dist --project-name=img-h4ku
 ```
 
@@ -64,34 +69,40 @@ npx wrangler pages deploy dist --project-name=img-h4ku
    - **R2 bucket**: Select your bucket
 5. Click **Save**
 
-## Step 5: Set Environment Variables
+## Step 5: Set ADMIN_PASSWORD as Secret
+
+Since `DOMAINS` is managed in `wrangler.toml`, only `ADMIN_PASSWORD` needs to be set as a Secret (encrypted) in Dashboard.
 
 1. Go to Pages project → **Settings** → **Environment variables**
-2. Add variables for **Production**:
+2. Under **Secrets**, click **Add**
+3. Add:
+   - **Name**: `ADMIN_PASSWORD`
+   - **Value**: Your password
+4. Click **Save**
 
-| Variable | Value | Description |
-|----------|-------|-------------|
-| `ADMIN_PASSWORD` | Your password | Login password |
-| `DOMAINS` | `img.h4ku.com,img.lum.bio` | Supported domains |
+Alternatively via Wrangler CLI:
 
-3. Click **Save**
-
-**Security Note**: Never commit passwords to your repository.
+```bash
+npx wrangler pages secret put ADMIN_PASSWORD --project-name=img-h4ku
+```
 
 ## Step 6: Configure Custom Domain (Admin Panel)
 
+**Important**: Use a different subdomain than R2.
+
 1. Go to Pages project → **Custom domains**
 2. Click **Set up a custom domain**
-3. Enter domain (e.g., `img.h4ku.com`)
+3. Enter `admin.img.h4ku.com`
 4. Follow DNS configuration prompts
 5. Wait for SSL certificate to activate
 
 ## Step 7: Verify Deployment
 
-1. Visit `https://img.h4ku.com/admin`
+1. Visit `https://admin.img.h4ku.com/admin`
 2. Log in with your password
 3. Upload a test image
-4. Copy image link and verify it loads
+4. Copy image link → should point to `https://img.h4ku.com/...`
+5. Open the link to verify R2 serving works
 
 ## Configuration Reference
 
@@ -107,7 +118,6 @@ binding = "R2"
 bucket_name = "img-h4ku"
 
 [vars]
-ADMIN_PASSWORD = "dev-password"  # Override in Dashboard for production
 DOMAINS = "img.h4ku.com,img.lum.bio"
 ```
 
@@ -119,11 +129,11 @@ DOMAINS = "img.h4ku.com,img.lum.bio"
 
 ### Environment Variables
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `ADMIN_PASSWORD` | Yes | Login password |
-| `DOMAINS` | No | Comma-separated domain list |
-| `JWT_SECRET` | No | Custom JWT secret (defaults to password) |
+| Variable | Type | Required | Description |
+|----------|------|----------|-------------|
+| `ADMIN_PASSWORD` | Secret | Yes | Set via Dashboard or `wrangler secret` |
+| `DOMAINS` | Var | No | In `wrangler.toml`, comma-separated |
+| `JWT_SECRET` | Secret | No | Defaults to ADMIN_PASSWORD |
 
 ## Updating Deployment
 
@@ -148,7 +158,7 @@ npx wrangler pages deploy dist --project-name=img-h4ku
 
 ### API returns 401 Unauthorized
 
-- Verify `ADMIN_PASSWORD` is set in environment variables
+- Verify `ADMIN_PASSWORD` secret is set in Dashboard
 - Check token hasn't expired (24-hour validity)
 - Try logging out and back in
 
@@ -162,7 +172,10 @@ npx wrangler pages deploy dist --project-name=img-h4ku
 
 - Ensure `functions/` directory is in repository root
 - Check Cloudflare Dashboard → Pages → Functions for errors
-- Verify build output includes functions
+
+### Domain conflict
+
+R2 custom domain and Pages custom domain **cannot** be the same hostname. Use `admin.img.h4ku.com` for Pages and `img.h4ku.com` for R2.
 
 ## Cost Estimation
 
@@ -181,6 +194,6 @@ For personal use, this is typically sufficient at $0 cost.
 
 1. **Use strong password** - At least 16 characters
 2. **Enable 2FA** on Cloudflare account
-3. **Don't commit secrets** - Use Dashboard environment variables
+3. **Don't commit secrets** - Use `wrangler secret` or Dashboard Secrets
 4. **Review access logs** - Monitor for unauthorized access
 5. **Regular backups** - Export R2 data periodically

@@ -52,11 +52,10 @@ npx wrangler pages dev dist --port 8788
 
 ```
 Image Access (read):
-  User → Cloudflare CDN → R2 Custom Domain → R2 Bucket
-  (No Worker involved, saves request quota)
+  User → Cloudflare CDN → img.h4ku.com (R2 Custom Domain) → R2 Bucket
 
 Admin Panel (write):
-  User → Cloudflare Pages → Pages Functions → R2 Bucket
+  User → admin.img.h4ku.com (Cloudflare Pages) → Pages Functions → R2 Bucket
 ```
 
 ## License
