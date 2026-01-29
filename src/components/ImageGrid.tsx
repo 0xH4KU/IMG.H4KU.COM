@@ -28,7 +28,9 @@ const DOMAINS = {
   lum: 'https://img.lum.bio',
 };
 
-const isDev = window.location.hostname === 'localhost';
+// Use file proxy in development or Pages preview (before R2 custom domain is configured)
+const useFileProxy = window.location.hostname === 'localhost' ||
+  window.location.hostname.endsWith('.pages.dev');
 
 function getFileExt(key: string): string {
   const name = key.split('/').pop() || '';
@@ -94,7 +96,7 @@ export function ImageGrid({ folder, domain, refreshKey, onRefresh, activeTag, sh
   }, [fetchImages, refreshKey]);
 
   const getImageUrl = (key: string) =>
-    isDev ? `/api/file?key=${encodeURIComponent(key)}` : `${DOMAINS[domain]}/${key}`;
+    useFileProxy ? `/api/file?key=${encodeURIComponent(key)}` : `${DOMAINS[domain]}/${key}`;
 
   const getCopyUrl = (key: string) => `${DOMAINS[domain]}/${key}`;
 
