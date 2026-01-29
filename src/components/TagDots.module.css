@@ -1,0 +1,19 @@
+.dots {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--tag-color);
+}
+
+.overflow {
+  font-size: 0.625rem;
+  color: var(--color-text-muted);
+  margin-left: 1px;
+}

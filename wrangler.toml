@@ -1,0 +1,11 @@
+name = "img-h4ku"
+compatibility_date = "2024-12-30"
+pages_build_output_dir = "dist"
+
+[[r2_buckets]]
+binding = "R2"
+bucket_name = "img-h4ku"
+
+[vars]
+ADMIN_PASSWORD = "change-me-in-dashboard"  # Set in Cloudflare Dashboard for production
+DOMAINS = "img.h4ku.com,img.lum.bio"

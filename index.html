@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+
+    <title>IMG - H4KU</title>
+    <meta name="description" content="Image hosting by H4KU" />
+    <meta name="robots" content="noindex, nofollow" />
+
+    <link rel="icon" type="image/svg+xml" href="/logo/H4KU-Logo.svg" />
+
+    <meta name="theme-color" content="#e8e8e8" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0f0f0f" media="(prefers-color-scheme: dark)" />
+
+    <link rel="preload" href="/fonts/ProFont.woff2" as="font" type="font/woff2" crossorigin />
+
+    <script>
+      (function() {
+        const theme = localStorage.getItem('theme') ||
+          (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+        document.documentElement.setAttribute('data-theme', theme);
+      })();
+    </script>
+
+    <style>
+      @font-face {
+        font-family: 'ProFont';
+        src: url('/fonts/ProFont.woff2') format('woff2');
+        font-weight: 400;
+        font-style: normal;
+        font-display: swap;
+      }
+
+      *, *::before, *::after {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      :root {
+        --font-primary: 'ProFont', ui-monospace, 'Cascadia Code', Menlo, Monaco, Consolas, monospace;
+        --font-size-base: 16px;
+        --topbar-height: 56px;
+        --transition-fast: 0.15s;
+        --transition-normal: 0.25s;
+        --color-primary: #c0a88d;
+        --color-secondary: #e87722;
+        --color-success: #4caf50;
+        --color-error: #f44336;
+        --radius-sm: 4px;
+        --radius-md: 8px;
+        --radius-lg: 12px;
+        /* Finder-style tag colors */
+        --tag-red: #ff3b30;
+        --tag-orange: #ff9500;
+        --tag-yellow: #ffcc00;
+        --tag-green: #34c759;
+        --tag-blue: #007aff;
+        --tag-purple: #af52de;
+        --tag-gray: #8e8e93;
+      }
+
+      [data-theme='light'] {
+        --color-background: #f5f5f5;
+        --color-surface: #e8e8e8;
+        --color-border: #d0d0d0;
+        --color-text: #1a1a1a;
+        --color-text-muted: #666;
+        --grid-line: rgba(0, 0, 0, 0.03);
+        --grid-bold: rgba(0, 0, 0, 0.06);
+      }
+
+      [data-theme='dark'] {
+        --color-background: #1a1a1a;
+        --color-surface: #0f0f0f;
+        --color-border: #333;
+        --color-text: #e8e8e8;
+        --color-text-muted: #999;
+        --grid-line: rgba(255, 255, 255, 0.02);
+        --grid-bold: rgba(255, 255, 255, 0.04);
+      }
+
+      html {
+        height: 100%;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      body {
+        height: 100%;
+        font-family: var(--font-primary);
+        font-size: var(--font-size-base);
+        background-color: var(--color-background);
+        color: var(--color-text);
+        overflow: hidden;
+      }
+
+      #root {
+        min-height: 100vh;
+        min-height: 100dvh;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

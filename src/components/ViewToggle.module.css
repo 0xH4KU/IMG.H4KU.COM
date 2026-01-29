@@ -1,0 +1,27 @@
+.toggle {
+  display: flex;
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  color: var(--color-text-muted);
+  background: transparent;
+  transition: all var(--transition-fast);
+}
+
+.btn:hover {
+  color: var(--color-text);
+}
+
+.btn.active {
+  background: var(--color-primary);
+  color: white;
+}
