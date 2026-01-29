@@ -98,7 +98,7 @@ npx wrangler pages secret put ADMIN_PASSWORD --project-name=img-h4ku
 
 ## Step 7: Verify Deployment
 
-1. Visit `https://admin.img.h4ku.com/admin`
+1. Visit `https://admin.img.h4ku.com/console`
 2. Log in with your password
 3. Upload a test image
 4. Copy image link → should point to `https://img.h4ku.com/...`

@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect, ReactNode } from 'react
 
 interface AuthContextType {
   isAuthenticated: boolean;
+  isLoading: boolean;
   login: (password: string) => Promise<boolean>;
   logout: () => void;
 }
@@ -12,6 +13,7 @@ const AUTH_KEY = 'img_auth_token';
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const token = sessionStorage.getItem(AUTH_KEY);
@@ -19,7 +21,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       verifyToken(token).then(valid => {
         setIsAuthenticated(valid);
         if (!valid) sessionStorage.removeItem(AUTH_KEY);
+        setIsLoading(false);
       });
+    } else {
+      setIsLoading(false);
     }
   }, []);
 
@@ -49,7 +54,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, login, logout }}>
+    <AuthContext.Provider value={{ isAuthenticated, isLoading, login, logout }}>
       {children}
     </AuthContext.Provider>
   );

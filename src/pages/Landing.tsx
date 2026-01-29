@@ -6,7 +6,7 @@ export function Landing() {
       <div className={styles.content}>
         <h1 className={styles.title}>IMG.H4KU.COM</h1>
         <p className={styles.subtitle}>Image Hosting Service</p>
-        <a href="/admin" className={styles.link}>
+        <a href="/console" className={styles.link}>
           Admin Panel
         </a>
       </div>

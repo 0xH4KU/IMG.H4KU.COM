@@ -6,20 +6,24 @@ import { Landing } from './pages/Landing';
 import styles from './App.module.css';
 
 function AppContent() {
-  const { isAuthenticated } = useAuth();
-  const [isAdminRoute, setIsAdminRoute] = useState(false);
+  const { isAuthenticated, isLoading } = useAuth();
+  const [isConsoleRoute, setIsConsoleRoute] = useState(false);
 
   useEffect(() => {
     const checkRoute = () => {
-      setIsAdminRoute(window.location.pathname.startsWith('/admin'));
+      setIsConsoleRoute(window.location.pathname.startsWith('/console'));
     };
     checkRoute();
     window.addEventListener('popstate', checkRoute);
     return () => window.removeEventListener('popstate', checkRoute);
   }, []);
 
-  if (!isAdminRoute) {
+  if (!isConsoleRoute) {
     return <Landing />;
+  }
+
+  if (isLoading) {
+    return null;
   }
 
   if (!isAuthenticated) {
