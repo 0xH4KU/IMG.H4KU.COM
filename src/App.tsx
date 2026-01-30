@@ -3,22 +3,34 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { Login } from './pages/Login';
 import { Admin } from './pages/Admin';
 import { Landing } from './pages/Landing';
+import { Share } from './pages/Share';
 import styles from './App.module.css';
 
 function AppContent() {
   const { isAuthenticated, isLoading } = useAuth();
-  const [isConsoleRoute, setIsConsoleRoute] = useState(false);
+  const [route, setRoute] = useState<'console' | 'share' | 'landing'>('landing');
 
   useEffect(() => {
     const checkRoute = () => {
-      setIsConsoleRoute(window.location.pathname.startsWith('/console'));
+      const path = window.location.pathname;
+      if (path.startsWith('/console')) {
+        setRoute('console');
+      } else if (path.startsWith('/share/')) {
+        setRoute('share');
+      } else {
+        setRoute('landing');
+      }
     };
     checkRoute();
     window.addEventListener('popstate', checkRoute);
     return () => window.removeEventListener('popstate', checkRoute);
   }, []);
 
-  if (!isConsoleRoute) {
+  if (route === 'share') {
+    return <Share />;
+  }
+
+  if (route !== 'console') {
     return <Landing />;
   }
 

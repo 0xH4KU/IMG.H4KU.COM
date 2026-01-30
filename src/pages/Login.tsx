@@ -29,6 +29,7 @@ export function Login() {
         <div className={styles.header}>
           <Lock size={32} strokeWidth={1.5} />
           <h1 className={styles.title}>Admin Login</h1>
+          <p className={styles.subtitle}>Use your admin password to continue.</p>
         </div>
 
         {error && (

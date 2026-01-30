@@ -1,3 +1,6 @@
+import { getHashMeta, saveHashMeta } from '../_utils/meta';
+import { logError } from '../_utils/log';
+
 // Auth utilities (inlined)
 function verifyToken(token, secret) {
   try {
@@ -14,7 +17,11 @@ function authenticate(request, env) {
 }
 
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/avif', 'image/svg+xml'];
-const MAX_SIZE = 20 * 1024 * 1024;
+const MAX_SIZE = 50 * 1024 * 1024;
+
+function bytesToHex(bytes) {
+  return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+}
 
 export async function onRequestPost(context) {
   const { request, env } = context;
@@ -30,19 +37,44 @@ export async function onRequestPost(context) {
 
     if (!file) return new Response('No file provided', { status: 400 });
     if (!ALLOWED_TYPES.includes(file.type)) return new Response(`Invalid file type: ${file.type}`, { status: 400 });
-    if (file.size > MAX_SIZE) return new Response('File too large (max 20MB)', { status: 400 });
+    if (file.size > MAX_SIZE) return new Response('File too large (max 50MB)', { status: 400 });
 
     const timestamp = Date.now().toString(36);
     const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
     const key = folder ? `${folder}/${timestamp}-${safeName}` : `${timestamp}-${safeName}`;
 
-    await env.R2.put(key, file.stream(), {
+    const uploadedAt = new Date().toISOString();
+    const buffer = await file.arrayBuffer();
+    const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
+    const hash = bytesToHex(new Uint8Array(hashBuffer));
+
+    await env.R2.put(key, buffer, {
       httpMetadata: { contentType: file.type },
-      customMetadata: { originalName: file.name, uploadedAt: new Date().toISOString() },
+      customMetadata: { originalName: file.name, uploadedAt, sha256: hash },
     });
+
+    try {
+      const hashMeta = await getHashMeta(env);
+      hashMeta.hashes = hashMeta.hashes || {};
+      hashMeta.hashes[key] = { hash, size: file.size, uploadedAt };
+      await saveHashMeta(env, hashMeta);
+    } catch (err) {
+      await logError(env, {
+        route: '/api/upload',
+        method: 'POST',
+        message: 'Failed to write hash meta',
+        detail: err,
+      });
+    }
 
     return Response.json({ key, size: file.size, type: file.type });
   } catch (err) {
+    await logError(env, {
+      route: '/api/upload',
+      method: 'POST',
+      message: 'Upload failed',
+      detail: err,
+    });
     return new Response(`Upload failed: ${err}`, { status: 500 });
   }
 }

@@ -1,11 +1,13 @@
-import { useState, useEffect, useCallback, useMemo, MouseEvent } from 'react';
-import { Copy, Check, RefreshCw, Star, MoreHorizontal } from 'lucide-react';
+import { useState, useEffect, useCallback, useMemo, useRef, MouseEvent as ReactMouseEvent } from 'react';
+import { Copy, Check, RefreshCw, Star, MoreHorizontal, Trash2, Download, Tags, Share2, FileText, Code, Square, CheckSquare, Pencil, Folder } from 'lucide-react';
 import { getAuthToken } from '../contexts/AuthContext';
-import { useImageMeta, TagColor } from '../contexts/ImageMetaContext';
+import { useImageMeta, TagColor, TAG_COLORS } from '../contexts/ImageMetaContext';
 import { TagDots } from './TagDots';
 import { ImageContextMenu } from './ImageContextMenu';
 import { ViewToggle, ViewMode } from './ViewToggle';
 import { GroupSelector, GroupBy } from './GroupSelector';
+import { ImageFilters } from '../types';
+import { downloadZip } from '../utils/zip';
 import styles from './ImageGrid.module.css';
 
 interface ImageItem {
@@ -21,6 +23,10 @@ interface ImageGridProps {
   onRefresh: () => void;
   activeTag: TagColor | null;
   showFavorites: boolean;
+  filters: ImageFilters;
+  onShareItems: (items: string[]) => void;
+  onBulkRename: (items: string[]) => void;
+  onBulkMove: (items: string[]) => void;
 }
 
 const DOMAINS = {
@@ -60,15 +66,19 @@ const TAG_LABEL: Record<string, string> = {
   blue: 'Blue', purple: 'Purple', gray: 'Gray',
 };
 
-export function ImageGrid({ folder, domain, refreshKey, onRefresh, activeTag, showFavorites }: ImageGridProps) {
+export function ImageGrid({ folder, domain, refreshKey, onRefresh, activeTag, showFavorites, filters, onShareItems, onBulkRename, onBulkMove }: ImageGridProps) {
   const [images, setImages] = useState<ImageItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [groupBy, setGroupBy] = useState<GroupBy>('none');
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; key: string } | null>(null);
+  const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
+  const [tagMenu, setTagMenu] = useState<{ mode: 'add' | 'remove'; x: number; y: number } | null>(null);
+  const [downloading, setDownloading] = useState(false);
+  const tagMenuRef = useRef<HTMLDivElement>(null);
 
-  const { getTags, isFavorite, toggleTag, toggleFavorite } = useImageMeta();
+  const { getTags, isFavorite, toggleTag, toggleFavorite, refreshMeta } = useImageMeta();
 
   const fetchImages = useCallback(async () => {
     setLoading(true);
@@ -95,16 +105,62 @@ export function ImageGrid({ folder, domain, refreshKey, onRefresh, activeTag, sh
     fetchImages();
   }, [fetchImages, refreshKey]);
 
+  useEffect(() => {
+    if (!tagMenu) return;
+    const handleClick = (event: globalThis.MouseEvent) => {
+      if (tagMenuRef.current && !tagMenuRef.current.contains(event.target as Node)) {
+        setTagMenu(null);
+      }
+    };
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setTagMenu(null);
+    };
+    document.addEventListener('mousedown', handleClick);
+    document.addEventListener('keydown', handleKey);
+    return () => {
+      document.removeEventListener('mousedown', handleClick);
+      document.removeEventListener('keydown', handleKey);
+    };
+  }, [tagMenu]);
+
   const getImageUrl = (key: string) =>
     useFileProxy ? `/api/file?key=${encodeURIComponent(key)}` : `${DOMAINS[domain]}/${key}`;
 
   const getCopyUrl = (key: string) => `${DOMAINS[domain]}/${key}`;
+
+  const getAltText = (key: string) => {
+    const name = key.split('/').pop() || key;
+    return name.replace(/\.[^/.]+$/, '').replace(/[-_]+/g, ' ').trim() || 'image';
+  };
+
+  const escapeHtml = (text: string) =>
+    text.replace(/&/g, '&amp;')
+      .replace(/"/g, '&quot;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
 
   const copyLink = async (key: string) => {
     const url = getCopyUrl(key);
     await navigator.clipboard.writeText(url);
     setCopiedKey(key);
     setTimeout(() => setCopiedKey(null), 2000);
+  };
+
+  const copyMarkdown = async (key: string, promptAlt = true) => {
+    const url = getCopyUrl(key);
+    const defaultAlt = getAltText(key);
+    const alt = promptAlt ? (prompt('Alt text:', defaultAlt) ?? '') : defaultAlt;
+    if (promptAlt && alt === '') return;
+    await navigator.clipboard.writeText(`![${alt || defaultAlt}](${url})`);
+  };
+
+  const copyHtml = async (key: string, promptAlt = true) => {
+    const url = getCopyUrl(key);
+    const defaultAlt = getAltText(key);
+    const alt = promptAlt ? (prompt('Alt text:', defaultAlt) ?? '') : defaultAlt;
+    if (promptAlt && alt === '') return;
+    const safeAlt = escapeHtml(alt || defaultAlt);
+    await navigator.clipboard.writeText(`<img src="${url}" alt="${safeAlt}" loading="lazy" />`);
   };
 
   const deleteImage = async (key: string) => {
@@ -115,8 +171,114 @@ export function ImageGrid({ folder, domain, refreshKey, onRefresh, activeTag, sh
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (res.ok) onRefresh();
+      if (res.ok) {
+        onRefresh();
+        refreshMeta();
+      }
     } catch { /* ignore */ }
+  };
+
+  const toggleSelect = (key: string) => {
+    setSelectedKeys(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  };
+
+  const clearSelection = () => {
+    setSelectedKeys(new Set());
+  };
+
+  const selectAll = () => {
+    setSelectedKeys(new Set(processedImages.map(img => img.key)));
+  };
+
+  const deleteSelected = async () => {
+    if (selectedKeys.size === 0) return;
+    if (!confirm(`Delete ${selectedKeys.size} selected image(s)?`)) return;
+    const token = getAuthToken();
+    try {
+      const res = await fetch('/api/images/batch', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ keys: Array.from(selectedKeys) }),
+      });
+      if (res.ok) {
+        clearSelection();
+        onRefresh();
+        refreshMeta();
+      }
+    } catch {
+      // Ignore errors
+    }
+  };
+
+  const applyBulkTag = async (tag: TagColor, mode: 'add' | 'remove') => {
+    const token = getAuthToken();
+    try {
+      const res = await fetch('/api/metadata/batch', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          keys: Array.from(selectedKeys),
+          addTags: mode === 'add' ? [tag] : [],
+          removeTags: mode === 'remove' ? [tag] : [],
+        }),
+      });
+      if (res.ok) {
+        refreshMeta();
+      }
+    } catch {
+      // Ignore errors
+    }
+  };
+
+  const downloadSelected = async () => {
+    if (selectedKeys.size === 0) return;
+    setDownloading(true);
+    try {
+      await downloadZip({
+        name: 'images',
+        keys: Array.from(selectedKeys),
+        getUrl: getImageUrl,
+      });
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  const copyMarkdownSelected = async () => {
+    if (selectedKeys.size === 0) return;
+    const lines = Array.from(selectedKeys).map(key => {
+      const alt = getAltText(key);
+      return `![${alt}](${getCopyUrl(key)})`;
+    });
+    await navigator.clipboard.writeText(lines.join('\n'));
+  };
+
+  const copyHtmlSelected = async () => {
+    if (selectedKeys.size === 0) return;
+    const lines = Array.from(selectedKeys).map(key => {
+      const alt = escapeHtml(getAltText(key));
+      return `<img src="${getCopyUrl(key)}" alt="${alt}" loading="lazy" />`;
+    });
+    await navigator.clipboard.writeText(lines.join('\n'));
+  };
+
+  const openTagMenu = (mode: 'add' | 'remove', event: ReactMouseEvent<HTMLButtonElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    setTagMenu({ mode, x: rect.left, y: rect.bottom + 6 });
   };
 
   const formatSize = (bytes: number) => {
@@ -135,7 +297,7 @@ export function ImageGrid({ folder, domain, refreshKey, onRefresh, activeTag, sh
     return parts.length > 1 ? parts[0] : '';
   };
 
-  const handleContextMenu = (e: MouseEvent, key: string) => {
+  const handleContextMenu = (e: ReactMouseEvent, key: string) => {
     e.preventDefault();
     setContextMenu({ x: e.clientX, y: e.clientY, key });
   };
@@ -154,6 +316,45 @@ export function ImageGrid({ folder, domain, refreshKey, onRefresh, activeTag, sh
       filtered = filtered.filter(img => isFavorite(img.key));
     }
 
+    // Search by filename
+    if (filters.query.trim()) {
+      const query = filters.query.toLowerCase();
+      filtered = filtered.filter(img => (img.key.split('/').pop() || '').toLowerCase().includes(query));
+    }
+
+    // Filter by type
+    if (filters.type) {
+      const type = filters.type;
+      filtered = filtered.filter(img => {
+        const ext = getFileExt(img.key);
+        if (type === 'other') {
+          return !['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'svg'].includes(ext);
+        }
+        if (type === 'jpg') return ext === 'jpg' || ext === 'jpeg';
+        return ext === type;
+      });
+    }
+
+    // Filter by size (MB)
+    const minMb = filters.sizeMin ? Number(filters.sizeMin) : null;
+    const maxMb = filters.sizeMax ? Number(filters.sizeMax) : null;
+    if (Number.isFinite(minMb) && minMb !== null) {
+      filtered = filtered.filter(img => img.size >= minMb * 1024 * 1024);
+    }
+    if (Number.isFinite(maxMb) && maxMb !== null) {
+      filtered = filtered.filter(img => img.size <= maxMb * 1024 * 1024);
+    }
+
+    // Filter by date range
+    const from = filters.dateFrom ? new Date(`${filters.dateFrom}T00:00:00`).getTime() : null;
+    const to = filters.dateTo ? new Date(`${filters.dateTo}T23:59:59`).getTime() : null;
+    if (from) {
+      filtered = filtered.filter(img => new Date(img.uploaded).getTime() >= from);
+    }
+    if (to) {
+      filtered = filtered.filter(img => new Date(img.uploaded).getTime() <= to);
+    }
+
     // Sort: favorites first, then by upload date
     return [...filtered].sort((a, b) => {
       const aFav = isFavorite(a.key) ? 0 : 1;
@@ -161,7 +362,7 @@ export function ImageGrid({ folder, domain, refreshKey, onRefresh, activeTag, sh
       if (aFav !== bFav) return aFav - bFav;
       return new Date(b.uploaded).getTime() - new Date(a.uploaded).getTime();
     });
-  }, [images, activeTag, showFavorites, getTags, isFavorite]);
+  }, [images, activeTag, showFavorites, getTags, isFavorite, filters]);
 
   // Group images
   const groups = useMemo(() => {
@@ -210,21 +411,40 @@ export function ImageGrid({ folder, domain, refreshKey, onRefresh, activeTag, sh
     return entries.map(([label, images]) => ({ label, images }));
   }, [processedImages, groupBy, getTags]);
 
+  useEffect(() => {
+    if (selectedKeys.size === 0) return;
+    const visibleKeys = new Set(processedImages.map(img => img.key));
+    setSelectedKeys(prev => {
+      const next = new Set([...prev].filter(key => visibleKeys.has(key)));
+      return next;
+    });
+  }, [processedImages]);
+
   const showFolderBadge = folder === '';
+  const selectedCount = selectedKeys.size;
+  const allSelected = processedImages.length > 0 && processedImages.every(img => selectedKeys.has(img.key));
 
   const renderCard = (img: ImageItem) => {
     const imgTags = getTags(img.key);
     const imgFav = isFavorite(img.key);
     const folderName = showFolderBadge ? getFolderName(img.key) : '';
+    const selected = selectedKeys.has(img.key);
 
     return (
       <div
         key={img.key}
-        className={styles.card}
+        className={`${styles.card} ${selected ? styles.cardSelected : ''}`}
         onContextMenu={e => handleContextMenu(e, img.key)}
       >
         <div className={styles.imageWrapper}>
           {imgFav && <Star size={14} className={styles.favStar} fill="currentColor" />}
+          <button
+            className={`${styles.selectBtn} ${selected ? styles.selected : ''}`}
+            onClick={(e) => { e.stopPropagation(); toggleSelect(img.key); }}
+            title={selected ? 'Unselect' : 'Select'}
+          >
+            {selected ? <CheckSquare size={14} /> : <Square size={14} />}
+          </button>
           <img
             src={getImageUrl(img.key)}
             alt={img.key}
@@ -266,13 +486,21 @@ export function ImageGrid({ folder, domain, refreshKey, onRefresh, activeTag, sh
     const imgTags = getTags(img.key);
     const imgFav = isFavorite(img.key);
     const folderName = showFolderBadge ? getFolderName(img.key) : '';
+    const selected = selectedKeys.has(img.key);
 
     return (
       <div
         key={img.key}
-        className={styles.listItem}
+        className={`${styles.listItem} ${selected ? styles.listSelected : ''}`}
         onContextMenu={e => handleContextMenu(e, img.key)}
       >
+        <button
+          className={`${styles.selectBtn} ${styles.listSelect} ${selected ? styles.selected : ''}`}
+          onClick={(e) => { e.stopPropagation(); toggleSelect(img.key); }}
+          title={selected ? 'Unselect' : 'Select'}
+        >
+          {selected ? <CheckSquare size={14} /> : <Square size={14} />}
+        </button>
         <div className={styles.listThumb}>
           <img src={getImageUrl(img.key)} alt={img.key} loading="lazy" />
         </div>
@@ -308,24 +536,92 @@ export function ImageGrid({ folder, domain, refreshKey, onRefresh, activeTag, sh
     );
   };
 
+  const emptyMessage = showFavorites
+    ? 'No favorites yet. Star images to pin them here.'
+    : activeTag
+      ? 'No images with this tag yet.'
+      : folder
+        ? 'No images in this folder yet.'
+        : 'No images yet. Drop files above to upload.';
+
   return (
-    <div className={styles.container}>
+    <div className={`${styles.container} ${selectedCount > 0 ? styles.selectionMode : ''}`}>
       <div className={styles.header}>
         <span className={styles.count}>
           {processedImages.length} image{processedImages.length !== 1 ? 's' : ''}
         </span>
         <div className={styles.toolbar}>
-          <GroupSelector value={groupBy} onChange={setGroupBy} />
-          <ViewToggle mode={viewMode} onChange={setViewMode} />
+          <div className={styles.toolbarGroup}>
+            <span className={styles.toolbarLabel}>Group</span>
+            <GroupSelector value={groupBy} onChange={setGroupBy} />
+          </div>
+          <div className={styles.toolbarGroup}>
+            <span className={styles.toolbarLabel}>View</span>
+            <ViewToggle mode={viewMode} onChange={setViewMode} />
+          </div>
           <button className={styles.refreshBtn} onClick={onRefresh} disabled={loading}>
             <RefreshCw size={14} className={loading ? styles.spinning : ''} />
+            <span className={styles.refreshLabel}>Refresh</span>
           </button>
         </div>
       </div>
 
+      {selectedCount > 0 && (
+        <div className={styles.bulkBar}>
+          <div className={styles.bulkInfo}>
+            <button className={styles.bulkBtn} onClick={allSelected ? clearSelection : selectAll}>
+              {allSelected ? <CheckSquare size={14} /> : <Square size={14} />}
+              {allSelected ? 'All selected' : 'Select all'}
+            </button>
+            <span className={styles.bulkCount}>{selectedCount} selected</span>
+            <button className={styles.bulkLink} onClick={clearSelection}>
+              Clear
+            </button>
+          </div>
+          <div className={styles.bulkActions}>
+            <button className={`${styles.bulkBtn} ${styles.primary}`} onClick={downloadSelected} disabled={downloading}>
+              <Download size={14} />
+              {downloading ? 'Downloading...' : 'Download'}
+            </button>
+            <button className={styles.bulkBtn} onClick={copyMarkdownSelected}>
+              <FileText size={14} />
+              Markdown
+            </button>
+            <button className={styles.bulkBtn} onClick={copyHtmlSelected}>
+              <Code size={14} />
+              HTML
+            </button>
+            <button className={styles.bulkBtn} onClick={(e) => openTagMenu('add', e)}>
+              <Tags size={14} />
+              Tags +
+            </button>
+            <button className={styles.bulkBtn} onClick={(e) => openTagMenu('remove', e)}>
+              <Tags size={14} />
+              Tags -
+            </button>
+            <button className={styles.bulkBtn} onClick={() => onBulkRename(Array.from(selectedKeys))}>
+              <Pencil size={14} />
+              Rename
+            </button>
+            <button className={styles.bulkBtn} onClick={() => onBulkMove(Array.from(selectedKeys))}>
+              <Folder size={14} />
+              Move
+            </button>
+            <button className={`${styles.bulkBtn} ${styles.primary}`} onClick={() => onShareItems(Array.from(selectedKeys))}>
+              <Share2 size={14} />
+              Delivery
+            </button>
+            <button className={`${styles.bulkBtn} ${styles.danger}`} onClick={deleteSelected}>
+              <Trash2 size={14} />
+              Delete
+            </button>
+          </div>
+        </div>
+      )}
+
       {processedImages.length === 0 && !loading && (
         <div className={styles.empty}>
-          <p>{showFavorites ? 'No favorites yet' : activeTag ? 'No images with this tag' : 'No images in this folder'}</p>
+          <p>{emptyMessage}</p>
         </div>
       )}
 
@@ -362,10 +658,31 @@ export function ImageGrid({ folder, domain, refreshKey, onRefresh, activeTag, sh
           onToggleFavorite={() => toggleFavorite(contextMenu.key)}
           onToggleTag={(tag) => toggleTag(contextMenu.key, tag)}
           onCopyLink={() => copyLink(contextMenu.key)}
+          onCopyMarkdown={() => copyMarkdown(contextMenu.key)}
+          onCopyHtml={() => copyHtml(contextMenu.key)}
           onOpenInNewTab={() => window.open(getImageUrl(contextMenu.key), '_blank')}
           onDelete={() => deleteImage(contextMenu.key)}
         />
       )}
+
+      {tagMenu && (
+        <div
+          ref={tagMenuRef}
+          className={styles.tagMenu}
+          style={{ left: tagMenu.x, top: tagMenu.y }}
+        >
+          {TAG_COLORS.map(tag => (
+            <button
+              key={tag}
+              className={styles.tagMenuBtn}
+              style={{ '--tag-color': `var(--tag-${tag})` } as React.CSSProperties}
+              onClick={() => { applyBulkTag(tag, tagMenu.mode); setTagMenu(null); }}
+              title={`${tagMenu.mode === 'add' ? 'Add' : 'Remove'} ${tag}`}
+            />
+          ))}
+        </div>
+      )}
+
     </div>
   );
 }

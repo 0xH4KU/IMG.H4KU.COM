@@ -31,13 +31,31 @@ Opens at `http://localhost:8788`. Includes Functions and R2 binding.
 ```
 img.h4ku.com/
 ├── functions/                  # Cloudflare Pages Functions
+│   ├── _utils/
+│   │   ├── log.js             # Error logging utilities
+│   │   └── meta.js            # Metadata management utilities
 │   └── api/
 │       ├── auth.js            # Login authentication
 │       ├── auth/verify.js     # Token verification
 │       ├── file.js            # Image proxy (dev only)
 │       ├── folders.js         # Folder listing
 │       ├── images.js          # Image list/delete
+│       ├── images/
+│       │   ├── batch.js       # Batch delete images
+│       │   ├── move.js        # Batch move images
+│       │   └── rename.js      # Batch rename images
+│       ├── logs.js            # Error log management
+│       ├── maintenance/
+│       │   ├── broken-links.js # Check for broken links
+│       │   ├── duplicates.js  # Duplicate detection
+│       │   ├── export.js      # Metadata export
+│       │   ├── orphans.js     # Orphan metadata cleanup
+│       │   └── temp.js        # Temp folder cleanup
 │       ├── metadata.js        # Tags and favorites
+│       ├── metadata/batch.js  # Batch tag operations
+│       ├── monitoring/r2.js   # R2 storage monitoring
+│       ├── share/[id].js      # Public share access
+│       ├── shares.js          # Share management
 │       └── upload.js          # Image upload
 ├── src/
 │   ├── components/            # React components
@@ -52,10 +70,18 @@ img.h4ku.com/
 │   ├── contexts/              # React Context providers
 │   │   ├── AuthContext.tsx    # Authentication state
 │   │   └── ImageMetaContext.tsx # Tags/favorites state
+│   ├── modals/                # Modal components
+│   │   ├── BatchRenameModal.tsx # Batch rename dialog
+│   │   ├── DeliveryModal.tsx  # Share/delivery creation
+│   │   ├── DeliveryListModal.tsx # Active shares list
+│   │   └── ToolsModal.tsx     # Maintenance tools
 │   ├── pages/                 # Page components
 │   │   ├── Admin.tsx          # Admin panel
 │   │   ├── Landing.tsx        # Landing page
-│   │   └── Login.tsx          # Login page
+│   │   ├── Login.tsx          # Login page
+│   │   └── Share.tsx          # Public share page
+│   ├── utils/                 # Utility functions
+│   │   └── zip.ts             # ZIP download utilities
 │   ├── App.tsx                # Route entry
 │   └── main.tsx               # App entry
 ├── index.html                 # HTML template + CSS variables
@@ -71,19 +97,28 @@ img.h4ku.com/
 
 | Component | Description |
 |-----------|-------------|
-| `ImageGrid` | Main image display, supports grid/list view, grouping, filtering |
+| `ImageGrid` | Main image display, supports grid/list view, grouping, filtering, batch selection |
 | `FolderNav` | Sidebar navigation with folders, favorites, and tag filters |
-| `Uploader` | Drag-and-drop file upload with progress tracking |
-| `Header` | Top bar with logo, domain switch, theme toggle, logout |
+| `Uploader` | Drag-and-drop file upload with progress tracking and folder upload support |
+| `Header` | Top bar with logo, domain switch, theme toggle, tools, deliveries, logout |
 
 ### Supporting Components
 
 | Component | Description |
 |-----------|-------------|
-| `ImageContextMenu` | Right-click menu for image actions |
+| `ImageContextMenu` | Right-click menu for image actions (copy link, rename, delete, etc.) |
 | `TagDots` | Displays tag color indicators |
 | `ViewToggle` | Grid/List view switcher |
 | `GroupSelector` | Grouping mode dropdown |
+
+### Modal Components
+
+| Component | Description |
+|-----------|-------------|
+| `BatchRenameModal` | Batch rename with find/replace and prefix/suffix options |
+| `DeliveryModal` | Create password-protected share links for images or folders |
+| `DeliveryListModal` | View and manage active delivery links |
+| `ToolsModal` | Maintenance tools (temp cleanup, duplicates, broken links, export) |
 
 ## Context Providers
 
@@ -169,6 +204,7 @@ Build uses esbuild for minification. Output includes:
 
 Currently no automated tests. Manual testing checklist:
 
+### Basic Operations
 1. Login with password
 2. Upload single and multiple images
 3. Create folders and upload to specific folder
@@ -177,3 +213,26 @@ Currently no automated tests. Manual testing checklist:
 6. Test grouping by type, date, and tag
 7. Test on mobile device
 8. Verify image links work on production domain
+
+### Batch Operations
+9. Select multiple images and batch delete
+10. Batch rename with find/replace
+11. Batch move to different folder
+12. Batch download as ZIP
+13. Batch add/remove tags
+
+### Sharing & Delivery
+14. Create delivery link for selected images
+15. Create delivery link for entire folder
+16. Set password on delivery link
+17. Access delivery link and verify password protection
+18. Revoke delivery link and verify access denied
+19. Download all from delivery page
+
+### Maintenance
+20. Run temp folder cleanup (30 days)
+21. Check R2 storage monitoring displays correct values
+22. Run duplicate detection
+23. Check for broken links
+24. Export metadata backup
+25. Clean orphan metadata

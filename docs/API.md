@@ -106,7 +106,7 @@ folder: screenshots
 
 **Supported Types**: JPEG, PNG, GIF, WebP, AVIF, SVG
 
-**Max Size**: 20 MB
+**Max Size**: 50 MB
 
 **Response** (200 OK):
 ```json
@@ -114,6 +114,103 @@ folder: screenshots
   "key": "screenshots/1m2n3b4-filename.png",
   "size": 102400,
   "type": "image/png"
+}
+```
+
+### Batch Delete Images
+
+```http
+POST /api/images/batch
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "keys": [
+    "screenshots/1m2n3b4-image.png",
+    "wallpaper/5k6j7h8-bg.jpg"
+  ]
+}
+```
+
+**Response** (200 OK):
+```json
+{
+  "ok": true,
+  "deleted": 2,
+  "metaRemoved": 2
+}
+```
+
+### Batch Download Images
+
+Download multiple images as a ZIP file. This is handled client-side by fetching images and creating a ZIP using JSZip.
+
+**Client Implementation**:
+```typescript
+import JSZip from 'jszip';
+
+async function downloadAsZip(keys: string[], domain: string) {
+  const zip = new JSZip();
+
+  for (const key of keys) {
+    const url = `https://${domain}/${key}`;
+    const response = await fetch(url);
+    const blob = await response.blob();
+    zip.file(key, blob);
+  }
+
+  const content = await zip.generateAsync({ type: 'blob' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(content);
+  link.download = 'images.zip';
+  link.click();
+}
+```
+
+### Batch Rename Images
+
+```http
+POST /api/images/rename
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "renames": [
+    { "from": "screenshots/old-name.png", "to": "screenshots/new-name.png" }
+  ]
+}
+```
+
+**Response** (200 OK):
+```json
+{
+  "ok": true,
+  "renamed": 1,
+  "skipped": 0,
+  "errors": []
+}
+```
+
+### Batch Move Images
+
+```http
+POST /api/images/move
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "keys": ["screenshots/old-name.png"],
+  "targetFolder": "archive"
+}
+```
+
+**Response** (200 OK):
+```json
+{
+  "ok": true,
+  "moved": 1,
+  "skipped": 0,
+  "errors": []
 }
 ```
 
@@ -208,6 +305,236 @@ Authorization: Bearer <token>
 {
   "ok": true
 }
+```
+
+### Batch Update Metadata
+
+```http
+POST /api/metadata/batch
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "keys": ["screenshots/a.png", "screenshots/b.png"],
+  "action": "add",
+  "tags": ["red", "blue"]
+}
+```
+
+**Parameters**:
+| Name | Type | Description |
+|------|------|-------------|
+| `keys` | string[] | Required. Image keys to update |
+| `action` | string | Required. "add" or "remove" |
+| `tags` | string[] | Optional. Tags to add/remove |
+
+**Response** (200 OK):
+```json
+{
+  "ok": true,
+  "updated": 2
+}
+```
+
+## Folders
+
+### List Folders
+
+```http
+GET /api/folders
+Authorization: Bearer <token>
+```
+
+**Response** (200 OK):
+```json
+{
+  "folders": ["screenshots", "wallpaper", "icons"]
+}
+```
+
+**Note**: Folders starting with `.` (like `.config`) are hidden.
+
+## Shares (Deliveries)
+
+### List Shares
+
+```http
+GET /api/shares
+Authorization: Bearer <token>
+```
+
+**Response** (200 OK):
+```json
+{
+  "shares": [
+    {
+      "id": "a1b2c3d4",
+      "title": "Delivery a1b2c3d4",
+      "description": "",
+      "count": 3,
+      "createdAt": "2026-01-29T12:00:00.000Z",
+      "updatedAt": "2026-01-29T12:00:00.000Z",
+      "hasPassword": true,
+      "domain": "h4ku"
+    }
+  ]
+}
+```
+
+### Create Share
+
+```http
+POST /api/shares
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "title": "Client Delivery",
+  "description": "Optional notes",
+  "items": ["screenshots/a.png", "screenshots/b.png"],
+  "password": "optional-password",
+  "domain": "h4ku"
+}
+```
+
+You can also share an entire folder:
+
+```json
+{
+  "title": "Folder Delivery",
+  "folder": "temp",
+  "password": "",
+  "domain": "h4ku"
+}
+```
+
+**Response** (200 OK):
+```json
+{
+  "ok": true,
+  "share": { "id": "a1b2c3d4" },
+  "url": "https://admin.img.h4ku.com/share/a1b2c3d4"
+}
+```
+
+### Revoke Share
+
+```http
+DELETE /api/shares?id=a1b2c3d4
+Authorization: Bearer <token>
+```
+
+**Response** (200 OK):
+```json
+{ "ok": true }
+```
+
+### Access Share (Public)
+
+```http
+GET /api/share/a1b2c3d4
+```
+
+If the share is protected, the API returns:
+
+```json
+{ "error": "password_required" }
+```
+
+### Unlock Share
+
+```http
+POST /api/share/a1b2c3d4
+Content-Type: application/json
+
+{ "password": "your-password" }
+```
+
+**Response** (200 OK):
+```json
+{
+  "share": { "id": "a1b2c3d4" },
+  "items": []
+}
+```
+
+## Monitoring
+
+### R2 Usage
+
+```http
+GET /api/monitoring/r2
+Authorization: Bearer <token>
+```
+
+**Response** (200 OK):
+```json
+{
+  "ok": true,
+  "total": { "count": 1200, "size": 123456789 },
+  "status": { "bytes": "ok", "count": "warn" },
+  "thresholds": {
+    "maxBytes": null,
+    "warnBytes": null,
+    "alertBytes": null,
+    "maxCount": null,
+    "warnCount": null,
+    "alertCount": null
+  }
+}
+```
+
+## Maintenance
+
+### Temp Cleanup
+
+```http
+POST /api/maintenance/temp?days=30&auto=1&dryRun=0
+Authorization: Bearer <token>
+```
+
+### Orphan Metadata Cleanup
+
+```http
+POST /api/maintenance/orphans
+Authorization: Bearer <token>
+```
+
+### Broken Links Check
+
+```http
+GET /api/maintenance/broken-links
+Authorization: Bearer <token>
+```
+
+### Duplicate Scan
+
+```http
+GET /api/maintenance/duplicates?compute=1&limit=200
+Authorization: Bearer <token>
+```
+
+### Export Metadata
+
+```http
+GET /api/maintenance/export
+Authorization: Bearer <token>
+```
+
+## Logs
+
+### Get Logs
+
+```http
+GET /api/logs?limit=50
+Authorization: Bearer <token>
+```
+
+### Clear Logs
+
+```http
+DELETE /api/logs
+Authorization: Bearer <token>
 ```
 
 ## File Proxy (Development Only)

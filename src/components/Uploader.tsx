@@ -1,5 +1,5 @@
-import { useState, useRef, useCallback, DragEvent, ChangeEvent } from 'react';
-import { Upload, X, Check, AlertCircle } from 'lucide-react';
+import { useState, useRef, useCallback, DragEvent, ChangeEvent, useEffect, KeyboardEvent as ReactKeyboardEvent } from 'react';
+import { Upload, X, Check, AlertCircle, Pause, Play, RotateCcw } from 'lucide-react';
 import { getAuthToken } from '../contexts/AuthContext';
 import styles from './Uploader.module.css';
 
@@ -11,15 +11,22 @@ interface UploaderProps {
 interface UploadFile {
   id: string;
   file: File;
+  targetFolder: string;
+  relativePath: string;
   progress: number;
   status: 'pending' | 'uploading' | 'success' | 'error';
   error?: string;
 }
 
+const MAX_CONCURRENT = 3;
+
 export function Uploader({ folder, onUploadComplete }: UploaderProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [files, setFiles] = useState<UploadFile[]>([]);
+  const [paused, setPaused] = useState(false);
+  const [activeCount, setActiveCount] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const folderInputRef = useRef<HTMLInputElement>(null);
   const folderRef = useRef(folder);
   folderRef.current = folder;
 
@@ -33,15 +40,23 @@ export function Uploader({ folder, onUploadComplete }: UploaderProps) {
     setIsDragging(false);
   }, []);
 
+  const handleDropzoneKeyDown = useCallback((e: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      inputRef.current?.click();
+    }
+  }, []);
+
   const uploadSingleFile = useCallback(async (uf: UploadFile) => {
     setFiles(prev =>
-      prev.map(f => (f.id === uf.id ? { ...f, status: 'uploading' } : f))
+      prev.map(f => (f.id === uf.id ? { ...f, status: 'uploading', error: undefined } : f))
     );
+    setActiveCount(count => count + 1);
 
     const token = getAuthToken();
     const formData = new FormData();
     formData.append('file', uf.file);
-    formData.append('folder', folderRef.current);
+    formData.append('folder', uf.targetFolder);
 
     try {
       const res = await fetch('/api/upload', {
@@ -71,19 +86,36 @@ export function Uploader({ folder, onUploadComplete }: UploaderProps) {
           f.id === uf.id ? { ...f, status: 'error', error: 'Upload failed' } : f
         )
       );
+    } finally {
+      setActiveCount(count => Math.max(0, count - 1));
     }
   }, [onUploadComplete]);
 
   const addFiles = useCallback((newFiles: File[]) => {
-    const uploadFiles: UploadFile[] = newFiles.map(file => ({
-      id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-      file,
-      progress: 0,
-      status: 'pending',
-    }));
+    const uploadFiles: UploadFile[] = newFiles.map(file => {
+      const relativePath = (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name;
+      const parts = relativePath.split('/');
+      const relativeDir = parts.length > 1 ? parts.slice(0, -1).join('/') : '';
+      const targetFolder = [folderRef.current, relativeDir].filter(Boolean).join('/');
+      return {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        file,
+        targetFolder,
+        relativePath,
+        progress: 0,
+        status: 'pending',
+      };
+    });
     setFiles(prev => [...prev, ...uploadFiles]);
-    uploadFiles.forEach(uploadSingleFile);
-  }, [uploadSingleFile]);
+  }, []);
+
+  useEffect(() => {
+    if (paused) return;
+    if (activeCount >= MAX_CONCURRENT) return;
+    const next = files.find(f => f.status === 'pending');
+    if (!next) return;
+    uploadSingleFile(next);
+  }, [files, paused, activeCount, uploadSingleFile]);
 
   const handleDrop = useCallback((e: DragEvent) => {
     e.preventDefault();
@@ -102,6 +134,14 @@ export function Uploader({ folder, onUploadComplete }: UploaderProps) {
     }
   }, [addFiles]);
 
+  const handleFolderInputChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      const selectedFiles = Array.from(e.target.files).filter(f => f.type.startsWith('image/'));
+      addFiles(selectedFiles);
+      e.target.value = '';
+    }
+  }, [addFiles]);
+
   const removeFile = (id: string) => {
     setFiles(prev => prev.filter(f => f.id !== id));
   };
@@ -109,6 +149,39 @@ export function Uploader({ folder, onUploadComplete }: UploaderProps) {
   const clearCompleted = () => {
     setFiles(prev => prev.filter(f => f.status !== 'success'));
   };
+
+  const retryFile = (id: string) => {
+    setFiles(prev =>
+      prev.map(f => (f.id === id ? { ...f, status: 'pending', error: undefined } : f))
+    );
+  };
+
+  const retryFailed = () => {
+    setFiles(prev =>
+      prev.map(f => (f.status === 'error' ? { ...f, status: 'pending', error: undefined } : f))
+    );
+  };
+
+  const togglePause = () => {
+    setPaused(prev => !prev);
+  };
+
+  const pendingCount = files.filter(f => f.status === 'pending').length;
+  const errorCount = files.filter(f => f.status === 'error').length;
+  const uploadingCount = files.filter(f => f.status === 'uploading').length;
+  const successCount = files.filter(f => f.status === 'success').length;
+
+  const errorSuffix = errorCount > 0 ? ` • ${errorCount} failed` : '';
+
+  const queueLabel = paused
+    ? `Queue paused${pendingCount > 0 ? ` • ${pendingCount} queued` : ''}${errorSuffix}`
+    : uploadingCount > 0
+      ? `${uploadingCount} uploading${pendingCount > 0 ? ` • ${pendingCount} queued` : ''}${errorSuffix}`
+      : pendingCount > 0
+        ? `${pendingCount} queued${errorSuffix}`
+        : successCount > 0
+          ? `${successCount} completed${errorSuffix}`
+          : `Queue idle${errorSuffix}`;
 
   return (
     <div className={styles.container}>
@@ -118,6 +191,10 @@ export function Uploader({ folder, onUploadComplete }: UploaderProps) {
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
         onClick={() => inputRef.current?.click()}
+        onKeyDown={handleDropzoneKeyDown}
+        role="button"
+        tabIndex={0}
+        aria-label="Upload images"
       >
         <input
           ref={inputRef}
@@ -127,39 +204,79 @@ export function Uploader({ folder, onUploadComplete }: UploaderProps) {
           onChange={handleInputChange}
           className={styles.input}
         />
+        <input
+          ref={folderInputRef}
+          type="file"
+          multiple
+          onChange={handleFolderInputChange}
+          className={styles.input}
+          // @ts-expect-error webkitdirectory is supported by Chromium browsers
+          webkitdirectory="true"
+        />
         <Upload size={32} strokeWidth={1.5} />
         <p className={styles.dropText}>
-          Drop images here or <span className={styles.link}>browse</span>
+          Drop images here or <span className={styles.link}>click to select files</span>
         </p>
-        {folder && (
-          <p className={styles.folderHint}>
-            Uploading to: <strong>{folder || 'root'}/</strong>
-          </p>
-        )}
+        <p className={styles.sizeHint}>Max size: 50 MB per file</p>
+        <p className={styles.folderHint}>
+          Uploading to: <strong>{folder || 'root'}/</strong>
+        </p>
+      </div>
+
+      <div className={styles.dropActions}>
+        <button className={styles.actionBtn} onClick={() => folderInputRef.current?.click()}>
+          Upload folder
+        </button>
+        <button className={styles.actionBtn} onClick={() => inputRef.current?.click()}>
+          Select files
+        </button>
+        <span className={styles.queueStatus}>
+          {queueLabel}
+        </span>
       </div>
 
       {files.length > 0 && (
         <div className={styles.fileList}>
           <div className={styles.fileListHeader}>
             <span>{files.length} file(s)</span>
-            {files.some(f => f.status === 'success') && (
-              <button className={styles.clearBtn} onClick={clearCompleted}>
-                Clear completed
+            <div className={styles.queueControls}>
+              <button className={styles.queueBtn} onClick={togglePause}>
+                {paused ? <Play size={12} /> : <Pause size={12} />}
+                {paused ? 'Resume' : 'Pause'}
               </button>
-            )}
+              {errorCount > 0 && (
+                <button className={styles.queueBtn} onClick={retryFailed}>
+                  <RotateCcw size={12} />
+                  Retry failed
+                </button>
+              )}
+              {files.some(f => f.status === 'success') && (
+                <button className={styles.clearBtn} onClick={clearCompleted}>
+                  Clear completed
+                </button>
+              )}
+            </div>
           </div>
           {files.map(f => (
             <div key={f.id} className={styles.fileItem}>
-              <span className={styles.fileName}>{f.file.name}</span>
+              <span className={styles.fileName}>{f.relativePath}</span>
               <span className={styles.fileStatus}>
                 {f.status === 'uploading' && (
                   <span className={styles.uploading}>Uploading...</span>
                 )}
+                {f.status === 'pending' && (
+                  <span className={styles.pending}>{paused ? 'Paused' : 'Queued'}</span>
+                )}
                 {f.status === 'success' && <Check size={16} className={styles.success} />}
                 {f.status === 'error' && (
-                  <span className={styles.error}>
-                    <AlertCircle size={16} />
-                  </span>
+                  <>
+                    <span className={styles.error}>
+                      <AlertCircle size={16} />
+                    </span>
+                    <button className={styles.retryBtn} onClick={() => retryFile(f.id)} title="Retry">
+                      <RotateCcw size={14} />
+                    </button>
+                  </>
                 )}
                 {f.status !== 'uploading' && (
                   <button

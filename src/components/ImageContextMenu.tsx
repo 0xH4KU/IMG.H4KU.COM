@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback } from 'react';
-import { Star, StarOff, Copy, ExternalLink, Trash2 } from 'lucide-react';
+import { Star, StarOff, Copy, ExternalLink, Trash2, FileText, Code } from 'lucide-react';
 import { TAG_COLORS, TagColor } from '../contexts/ImageMetaContext';
 import styles from './ImageContextMenu.module.css';
 
@@ -13,6 +13,8 @@ interface ImageContextMenuProps {
   onToggleFavorite: () => void;
   onToggleTag: (tag: TagColor) => void;
   onCopyLink: () => void;
+  onCopyMarkdown: () => void;
+  onCopyHtml: () => void;
   onOpenInNewTab: () => void;
   onDelete: () => void;
 }
@@ -26,6 +28,8 @@ export function ImageContextMenu({
   onToggleFavorite,
   onToggleTag,
   onCopyLink,
+  onCopyMarkdown,
+  onCopyHtml,
   onOpenInNewTab,
   onDelete,
 }: ImageContextMenuProps) {
@@ -116,6 +120,22 @@ export function ImageContextMenu({
       >
         <Copy size={16} />
         <span>Copy Link</span>
+      </button>
+
+      <button
+        className={styles.item}
+        onClick={() => handleAction(onCopyMarkdown)}
+      >
+        <FileText size={16} />
+        <span>Copy Markdown</span>
+      </button>
+
+      <button
+        className={styles.item}
+        onClick={() => handleAction(onCopyHtml)}
+      >
+        <Code size={16} />
+        <span>Copy HTML</span>
       </button>
 
       <button

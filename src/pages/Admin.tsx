@@ -1,10 +1,17 @@
 import { useState, useCallback, useEffect } from 'react';
-import { useAuth } from '../contexts/AuthContext';
+import { getAuthToken, useAuth } from '../contexts/AuthContext';
 import { ImageMetaProvider, TagColor } from '../contexts/ImageMetaContext';
 import { Header } from '../components/Header';
 import { Uploader } from '../components/Uploader';
+import { FilterBar } from '../components/FilterBar';
 import { ImageGrid } from '../components/ImageGrid';
 import { FolderNav } from '../components/FolderNav';
+import { ShareModal } from '../components/ShareModal';
+import { BulkRenameModal } from '../components/BulkRenameModal';
+import { BulkMoveModal } from '../components/BulkMoveModal';
+import { AdminToolsModal } from '../components/AdminToolsModal';
+import { ShareManagerModal } from '../components/ShareManagerModal';
+import { ImageFilters } from '../types';
 import styles from './Admin.module.css';
 
 export function Admin() {
@@ -15,6 +22,22 @@ export function Admin() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showFavorites, setShowFavorites] = useState(false);
   const [activeTag, setActiveTag] = useState<TagColor | null>(null);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [shareItems, setShareItems] = useState<string[]>([]);
+  const [shareFolder, setShareFolder] = useState<string | null>(null);
+  const [renameOpen, setRenameOpen] = useState(false);
+  const [moveOpen, setMoveOpen] = useState(false);
+  const [bulkKeys, setBulkKeys] = useState<string[]>([]);
+  const [toolsOpen, setToolsOpen] = useState(false);
+  const [shareManagerOpen, setShareManagerOpen] = useState(false);
+  const [filters, setFilters] = useState<ImageFilters>({
+    query: '',
+    type: '',
+    sizeMin: '',
+    sizeMax: '',
+    dateFrom: '',
+    dateTo: '',
+  });
 
   const handleUploadComplete = useCallback(() => {
     setRefreshKey(k => k + 1);
@@ -33,12 +56,50 @@ export function Admin() {
     setActiveTag(null);
   }, []);
 
+  const openShareForItems = useCallback((items: string[]) => {
+    setShareItems(items);
+    setShareFolder(null);
+    setShareOpen(true);
+  }, []);
+
+  const openShareForFolder = useCallback((folder: string) => {
+    setShareItems([]);
+    setShareFolder(folder);
+    setShareOpen(true);
+  }, []);
+
+  const openBulkRename = useCallback((items: string[]) => {
+    setBulkKeys(items);
+    setRenameOpen(true);
+  }, []);
+
+  const openBulkMove = useCallback((items: string[]) => {
+    setBulkKeys(items);
+    setMoveOpen(true);
+  }, []);
+
   useEffect(() => {
     if (!sidebarOpen) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => { document.body.style.overflow = prev; };
   }, [sidebarOpen]);
+
+  useEffect(() => {
+    const runAutoCleanup = async () => {
+      const token = getAuthToken();
+      if (!token) return;
+      try {
+        await fetch('/api/maintenance/temp?auto=1&days=30', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+        });
+      } catch {
+        // Ignore auto cleanup errors
+      }
+    };
+    runAutoCleanup();
+  }, []);
 
   return (
     <ImageMetaProvider>
@@ -50,6 +111,8 @@ export function Admin() {
           onToggleSidebar={() => setSidebarOpen(v => !v)}
           sidebarOpen={sidebarOpen}
           onLogoClick={handleLogoClick}
+          onOpenTools={() => setToolsOpen(true)}
+          onOpenShares={() => setShareManagerOpen(true)}
         />
 
         <main className={`${styles.main} ${sidebarOpen ? styles.sidebarOpen : ''}`}>
@@ -62,6 +125,7 @@ export function Admin() {
               onShowFavorites={setShowFavorites}
               activeTag={activeTag}
               onTagFilter={setActiveTag}
+              onShareFolder={openShareForFolder}
             />
           </aside>
 
@@ -80,6 +144,8 @@ export function Admin() {
               onUploadComplete={handleUploadComplete}
             />
 
+            <FilterBar value={filters} onChange={setFilters} />
+
             <ImageGrid
               folder={currentFolder}
               domain={selectedDomain}
@@ -87,9 +153,45 @@ export function Admin() {
               onRefresh={() => setRefreshKey(k => k + 1)}
               activeTag={activeTag}
               showFavorites={showFavorites}
+              filters={filters}
+              onShareItems={openShareForItems}
+              onBulkRename={openBulkRename}
+              onBulkMove={openBulkMove}
             />
           </div>
         </main>
+
+        <ShareModal
+          open={shareOpen}
+          onClose={() => setShareOpen(false)}
+          items={shareItems}
+          folder={shareFolder}
+          domain={selectedDomain}
+        />
+
+        <BulkRenameModal
+          open={renameOpen}
+          onClose={() => setRenameOpen(false)}
+          keys={bulkKeys}
+          onComplete={() => setRefreshKey(k => k + 1)}
+        />
+
+        <BulkMoveModal
+          open={moveOpen}
+          onClose={() => setMoveOpen(false)}
+          keys={bulkKeys}
+          onComplete={() => setRefreshKey(k => k + 1)}
+        />
+
+        <AdminToolsModal
+          open={toolsOpen}
+          onClose={() => setToolsOpen(false)}
+        />
+
+        <ShareManagerModal
+          open={shareManagerOpen}
+          onClose={() => setShareManagerOpen(false)}
+        />
       </div>
     </ImageMetaProvider>
   );

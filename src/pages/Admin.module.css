@@ -10,7 +10,7 @@
 .main {
   flex: 1;
   display: flex;
-  padding-top: var(--topbar-height);
+  padding-top: var(--topbar-offset);
   overflow: hidden;
   position: relative;
 }
@@ -28,7 +28,7 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  padding: 16px;
+  padding: 18px;
   gap: 16px;
 }
 
@@ -40,7 +40,7 @@
 @media (max-width: 768px) {
   .sidebar {
     position: fixed;
-    top: var(--topbar-height);
+    top: var(--topbar-offset);
     left: 0;
     bottom: 0;
     width: min(280px, 80vw);
@@ -57,7 +57,7 @@
   .scrim {
     display: block;
     position: fixed;
-    top: var(--topbar-height);
+    top: var(--topbar-offset);
     left: 0;
     right: 0;
     bottom: 0;

@@ -1,3 +1,6 @@
+import { getHashMeta, saveHashMeta } from '../_utils/meta';
+import { logError } from '../_utils/log';
+
 // Auth utilities (inlined)
 function verifyToken(token, secret) {
   try {
@@ -36,6 +39,12 @@ export async function onRequestGet(context) {
       }));
     return Response.json({ images });
   } catch (err) {
+    await logError(env, {
+      route: '/api/images',
+      method: 'GET',
+      message: 'Failed to list images',
+      detail: err,
+    });
     return new Response(`Failed to list images: ${err}`, { status: 500 });
   }
 }
@@ -68,8 +77,30 @@ export async function onRequestDelete(context) {
       }
     } catch { /* metadata cleanup failure doesn't affect image deletion */ }
 
+    // Cascade delete hash metadata
+    try {
+      const hashMeta = await getHashMeta(env);
+      if (hashMeta.hashes && hashMeta.hashes[key]) {
+        delete hashMeta.hashes[key];
+        await saveHashMeta(env, hashMeta);
+      }
+    } catch (err) {
+      await logError(env, {
+        route: '/api/images',
+        method: 'DELETE',
+        message: 'Failed to delete hash meta',
+        detail: err,
+      });
+    }
+
     return Response.json({ deleted: key });
   } catch (err) {
+    await logError(env, {
+      route: '/api/images',
+      method: 'DELETE',
+      message: 'Failed to delete image',
+      detail: err,
+    });
     return new Response(`Failed to delete: ${err}`, { status: 500 });
   }
 }

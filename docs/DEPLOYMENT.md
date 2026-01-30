@@ -134,6 +134,12 @@ DOMAINS = "img.h4ku.com,img.lum.bio"
 | `ADMIN_PASSWORD` | Secret | Yes | Set via Dashboard or `wrangler secret` |
 | `DOMAINS` | Var | No | In `wrangler.toml`, comma-separated |
 | `JWT_SECRET` | Secret | No | Defaults to ADMIN_PASSWORD |
+| `R2_MAX_BYTES` | Var | No | Optional max storage bytes for usage percent |
+| `R2_WARN_BYTES` | Var | No | Warn threshold for storage bytes |
+| `R2_ALERT_BYTES` | Var | No | Alert threshold for storage bytes |
+| `R2_MAX_COUNT` | Var | No | Optional max object count for usage percent |
+| `R2_WARN_COUNT` | Var | No | Warn threshold for object count |
+| `R2_ALERT_COUNT` | Var | No | Alert threshold for object count |
 
 ## Updating Deployment
 
@@ -165,8 +171,9 @@ npx wrangler pages deploy dist --project-name=img-h4ku
 ### Upload fails
 
 - Check R2 binding is configured correctly
-- Verify file is an allowed image type
-- Check file size (max 20MB)
+- Verify file is an allowed image type (JPEG, PNG, GIF, WebP, AVIF, SVG)
+- Check file size (max 50MB per file)
+- Verify sufficient R2 storage quota
 
 ### Functions not working
 

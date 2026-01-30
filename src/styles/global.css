@@ -64,6 +64,26 @@
   outline-offset: 2px;
 }
 
+html {
+  height: 100%;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  height: 100%;
+  font-family: var(--font-primary);
+  font-size: var(--font-size-base);
+  background: var(--color-background);
+  color: var(--color-text);
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+#root {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
 /* Button reset */
 button {
   font-family: inherit;
@@ -77,4 +97,24 @@ button {
 input, textarea {
   font-family: inherit;
   font-size: inherit;
+}
+
+a {
+  color: inherit;
+}
+
+img {
+  max-width: 100%;
+  display: block;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

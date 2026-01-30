@@ -1,3 +1,5 @@
+import { logError } from '../_utils/log';
+
 // Auth utilities (inlined)
 function verifyToken(token, secret) {
   try {
@@ -42,6 +44,12 @@ export async function onRequestGet(context) {
     const meta = await getMeta(env);
     return Response.json(meta);
   } catch (err) {
+    await logError(env, {
+      route: '/api/metadata',
+      method: 'GET',
+      message: 'Failed to get metadata',
+      detail: err,
+    });
     return new Response(`Failed to get metadata: ${err}`, { status: 500 });
   }
 }
@@ -90,6 +98,12 @@ export async function onRequestPut(context) {
       meta: meta.images[key] || { tags: [], favorite: false }
     });
   } catch (err) {
+    await logError(env, {
+      route: '/api/metadata',
+      method: 'PUT',
+      message: 'Failed to update metadata',
+      detail: err,
+    });
     return new Response(`Failed to update metadata: ${err}`, { status: 500 });
   }
 }
@@ -119,6 +133,12 @@ export async function onRequestDelete(context) {
 
     return Response.json({ ok: true });
   } catch (err) {
+    await logError(env, {
+      route: '/api/metadata',
+      method: 'DELETE',
+      message: 'Failed to delete metadata',
+      detail: err,
+    });
     return new Response(`Failed to delete metadata: ${err}`, { status: 500 });
   }
 }

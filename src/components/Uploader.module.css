@@ -22,7 +22,12 @@
 .dropzone:hover,
 .dropzone.dragging {
   border-color: var(--color-primary);
-  background: rgba(104, 150, 150, 0.05);
+  background: color-mix(in srgb, var(--color-primary) 8%, var(--color-surface));
+}
+
+.dropzone:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
 }
 
 .input {
@@ -33,6 +38,11 @@
   font-size: 0.875rem;
 }
 
+.sizeHint {
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+}
+
 .link {
   color: var(--color-primary);
   text-decoration: underline;
@@ -41,6 +51,37 @@
 .folderHint {
   font-size: 0.75rem;
   color: var(--color-text-muted);
+}
+
+.dropActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.actionBtn {
+  padding: 6px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-background);
+  color: var(--color-text);
+  font-size: 0.75rem;
+  transition: all var(--transition-fast);
+}
+
+.actionBtn:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.queueStatus {
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
 }
 
 .fileList {
@@ -59,6 +100,27 @@
   border-bottom: 1px solid var(--color-border);
   font-size: 0.75rem;
   color: var(--color-text-muted);
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.queueControls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.queueBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+.queueBtn:hover {
+  color: var(--color-text);
 }
 
 .clearBtn {
@@ -103,12 +165,33 @@
   color: var(--color-primary);
 }
 
+.pending {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
 .success {
   color: var(--color-success);
 }
 
 .error {
   color: var(--color-error);
+}
+
+.retryBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  color: var(--color-text-muted);
+  border-radius: 50%;
+  transition: all var(--transition-fast);
+}
+
+.retryBtn:hover {
+  background: var(--color-background);
+  color: var(--color-primary);
 }
 
 .removeBtn {

@@ -23,5 +23,5 @@
 
 .btn.active {
   background: var(--color-primary);
-  color: white;
+  color: #101010;
 }

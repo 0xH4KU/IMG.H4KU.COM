@@ -1,5 +1,6 @@
 .select {
-  padding: 6px 8px;
+  padding: 0 8px;
+  min-height: 32px;
   font-size: 0.75rem;
   font-family: var(--font-primary);
   color: var(--color-text-muted);

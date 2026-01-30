@@ -1,4 +1,4 @@
-import { LogOut, Sun, Moon, Menu, X } from 'lucide-react';
+import { LogOut, Sun, Moon, Menu, X, Wrench, Link2 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import styles from './Header.module.css';
 
@@ -9,9 +9,11 @@ interface HeaderProps {
   onToggleSidebar: () => void;
   sidebarOpen: boolean;
   onLogoClick: () => void;
+  onOpenTools: () => void;
+  onOpenShares: () => void;
 }
 
-export function Header({ selectedDomain, onDomainChange, onLogout, onToggleSidebar, sidebarOpen, onLogoClick }: HeaderProps) {
+export function Header({ selectedDomain, onDomainChange, onLogout, onToggleSidebar, sidebarOpen, onLogoClick, onOpenTools, onOpenShares }: HeaderProps) {
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
 
   useEffect(() => {
@@ -26,11 +28,13 @@ export function Header({ selectedDomain, onDomainChange, onLogout, onToggleSideb
     setTheme(next);
   };
 
+  const themeLabel = theme === 'light' ? 'Dark mode' : 'Light mode';
+
   return (
     <header className={styles.header}>
       <div className={styles.left}>
         <button
-          className={styles.menuBtn}
+          className={`${styles.menuBtn} ${sidebarOpen ? styles.menuActive : ''}`}
           onClick={onToggleSidebar}
           aria-label={sidebarOpen ? 'Close sidebar' : 'Open sidebar'}
         >
@@ -44,28 +48,53 @@ export function Header({ selectedDomain, onDomainChange, onLogout, onToggleSideb
       </div>
 
       <div className={styles.controls}>
-        <div className={styles.domainSwitch}>
-          <button
-            className={`${styles.domainBtn} ${selectedDomain === 'h4ku' ? styles.active : ''}`}
-            onClick={() => onDomainChange('h4ku')}
+        <div className={styles.domainGroup}>
+          <span className={styles.domainLabel}>Target</span>
+          <div className={styles.domainSwitch}>
+            <button
+              className={`${styles.domainBtn} ${selectedDomain === 'h4ku' ? styles.active : ''}`}
+              onClick={() => onDomainChange('h4ku')}
+            >
+              h4ku.com
+            </button>
+            <button
+              className={`${styles.domainBtn} ${selectedDomain === 'lum' ? styles.active : ''}`}
+              onClick={() => onDomainChange('lum')}
+            >
+              lum.bio
+            </button>
+          </div>
+          <select
+            className={styles.domainSelect}
+            value={selectedDomain}
+            onChange={e => onDomainChange(e.target.value as 'h4ku' | 'lum')}
           >
-            h4ku.com
-          </button>
-          <button
-            className={`${styles.domainBtn} ${selectedDomain === 'lum' ? styles.active : ''}`}
-            onClick={() => onDomainChange('lum')}
-          >
-            lum.bio
-          </button>
+            <option value="h4ku">img.h4ku.com</option>
+            <option value="lum">img.lum.bio</option>
+          </select>
         </div>
 
-        <button className={styles.iconBtn} onClick={toggleTheme} title="Toggle theme">
-          {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
-        </button>
+        <div className={styles.actionGroup}>
+          <button className={styles.iconBtn} onClick={onOpenShares} title="Manage deliveries">
+            <Link2 size={18} />
+            <span className={styles.iconLabel}>Deliveries</span>
+          </button>
 
-        <button className={styles.iconBtn} onClick={onLogout} title="Logout">
-          <LogOut size={18} />
-        </button>
+          <button className={styles.iconBtn} onClick={onOpenTools} title="Tools">
+            <Wrench size={18} />
+            <span className={styles.iconLabel}>Tools</span>
+          </button>
+
+          <button className={styles.iconBtn} onClick={toggleTheme} title={themeLabel}>
+            {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
+            <span className={styles.iconLabel}>{themeLabel}</span>
+          </button>
+
+          <button className={styles.iconBtn} onClick={onLogout} title="Logout">
+            <LogOut size={18} />
+            <span className={styles.iconLabel}>Logout</span>
+          </button>
+        </div>
       </div>
     </header>
   );
