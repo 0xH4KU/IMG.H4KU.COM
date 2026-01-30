@@ -10,6 +10,9 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | null>(null);
 
 const AUTH_KEY = 'img_auth_token';
+const DEV_BYPASS_AUTH = import.meta.env.VITE_DEV_BYPASS_AUTH === '1'
+  || import.meta.env.VITE_DEV_BYPASS_AUTH === 'true';
+const DEV_TOKEN = 'dev-local';
 
 const getLocalStorage = (): Storage | null => {
   try {
@@ -59,6 +62,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    if (DEV_BYPASS_AUTH) {
+      if (!getStoredToken()) setStoredToken(DEV_TOKEN);
+      setIsAuthenticated(true);
+      setIsLoading(false);
+      return;
+    }
     const token = getStoredToken();
     if (token) {
       verifyToken(token).then(valid => {
@@ -72,6 +81,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = async (password: string): Promise<boolean> => {
+    if (DEV_BYPASS_AUTH) {
+      setStoredToken(DEV_TOKEN);
+      setIsAuthenticated(true);
+      return true;
+    }
     try {
       const res = await fetch('/api/auth', {
         method: 'POST',
@@ -123,5 +137,6 @@ async function verifyToken(token: string): Promise<boolean> {
 }
 
 export function getAuthToken(): string | null {
+  if (DEV_BYPASS_AUTH) return getStoredToken() || DEV_TOKEN;
   return getStoredToken();
 }
