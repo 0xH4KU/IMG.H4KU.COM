@@ -1,4 +1,5 @@
 import { getHashMeta, saveHashMeta } from '../_utils/meta';
+import { moveToTrash } from '../_utils/trash';
 import { logError } from '../_utils/log';
 
 // Auth utilities (inlined)
@@ -61,7 +62,10 @@ export async function onRequestDelete(context) {
   if (!key) return new Response('Missing key', { status: 400 });
 
   try {
-    await env.R2.delete(key);
+    const result = await moveToTrash(env, key);
+    if (result.action === 'missing') {
+      return new Response('Not found', { status: 404 });
+    }
 
     // Cascade delete metadata
     try {
@@ -69,8 +73,11 @@ export async function onRequestDelete(context) {
       const metaObj = await env.R2.get(META_KEY);
       if (metaObj) {
         const meta = JSON.parse(await metaObj.text());
-        if (meta.images && meta.images[key]) {
-          delete meta.images[key];
+        if (meta.images && meta.images[result.from]) {
+          if (result.action === 'moved' && result.to) {
+            meta.images[result.to] = meta.images[result.from];
+          }
+          delete meta.images[result.from];
           meta.updatedAt = new Date().toISOString();
           await env.R2.put(META_KEY, JSON.stringify(meta));
         }
@@ -80,8 +87,11 @@ export async function onRequestDelete(context) {
     // Cascade delete hash metadata
     try {
       const hashMeta = await getHashMeta(env);
-      if (hashMeta.hashes && hashMeta.hashes[key]) {
-        delete hashMeta.hashes[key];
+      if (hashMeta.hashes && hashMeta.hashes[result.from]) {
+        if (result.action === 'moved' && result.to) {
+          hashMeta.hashes[result.to] = hashMeta.hashes[result.from];
+        }
+        delete hashMeta.hashes[result.from];
         await saveHashMeta(env, hashMeta);
       }
     } catch (err) {
@@ -93,7 +103,13 @@ export async function onRequestDelete(context) {
       });
     }
 
-    return Response.json({ deleted: key });
+    return Response.json({
+      ok: true,
+      deleted: result.action === 'deleted',
+      trashed: result.action === 'moved',
+      key: result.from,
+      to: result.to,
+    });
   } catch (err) {
     await logError(env, {
       route: '/api/images',

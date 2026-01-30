@@ -1,4 +1,5 @@
 import { getHashMeta, saveHashMeta } from '../../_utils/meta';
+import { moveToTrash } from '../../_utils/trash';
 import { logError } from '../../_utils/log';
 
 // Auth utilities (inlined)
@@ -46,28 +47,47 @@ export async function onRequestPost(context) {
       return new Response('Missing keys', { status: 400 });
     }
 
-    await env.R2.delete(keys);
+    const results = [];
+    let missing = 0;
+    for (const key of keys) {
+      const result = await moveToTrash(env, key);
+      if (result.action === 'missing') {
+        missing += 1;
+        continue;
+      }
+      results.push(result);
+    }
 
     const meta = await getMeta(env);
     let removed = 0;
-    for (const key of keys) {
-      if (meta.images[key]) {
-        delete meta.images[key];
+    let moved = 0;
+    for (const result of results) {
+      if (!meta.images[result.from]) continue;
+      if (result.action === 'moved' && result.to) {
+        meta.images[result.to] = meta.images[result.from];
+        moved += 1;
+      } else {
         removed += 1;
       }
+      delete meta.images[result.from];
     }
-    if (removed > 0) await saveMeta(env, meta);
+    if (removed > 0 || moved > 0) await saveMeta(env, meta);
 
     try {
       const hashMeta = await getHashMeta(env);
       let hashRemoved = 0;
-      for (const key of keys) {
-        if (hashMeta.hashes && hashMeta.hashes[key]) {
-          delete hashMeta.hashes[key];
+      let hashMoved = 0;
+      for (const result of results) {
+        if (!hashMeta.hashes || !hashMeta.hashes[result.from]) continue;
+        if (result.action === 'moved' && result.to) {
+          hashMeta.hashes[result.to] = hashMeta.hashes[result.from];
+          hashMoved += 1;
+        } else {
           hashRemoved += 1;
         }
+        delete hashMeta.hashes[result.from];
       }
-      if (hashRemoved > 0) await saveHashMeta(env, hashMeta);
+      if (hashRemoved > 0 || hashMoved > 0) await saveHashMeta(env, hashMeta);
     } catch (err) {
       await logError(env, {
         route: '/api/images/batch',
@@ -77,7 +97,14 @@ export async function onRequestPost(context) {
       });
     }
 
-    return Response.json({ ok: true, deleted: keys.length, metaRemoved: removed });
+    return Response.json({
+      ok: true,
+      trashed: results.filter(r => r.action === 'moved').length,
+      deleted: results.filter(r => r.action === 'deleted').length,
+      missing,
+      metaRemoved: removed,
+      metaMoved: moved,
+    });
   } catch (err) {
     await logError(env, {
       route: '/api/images/batch',

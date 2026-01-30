@@ -1,4 +1,5 @@
 import { getHashMeta, saveHashMeta, getShareMeta, saveShareMeta } from '../_utils/meta';
+import { moveToTrash } from '../_utils/trash';
 import { logError } from '../_utils/log';
 
 // Auth utilities (inlined)
@@ -277,20 +278,29 @@ export async function onRequestDelete(context) {
   try {
     const objects = await listAllObjects(env, `${name}/`);
     if (objects.length > 0) {
-      const keys = objects.map(obj => obj.key);
-      await env.R2.delete(keys);
+      const results = [];
+      for (const obj of objects) {
+        const result = await moveToTrash(env, obj.key);
+        if (result.action !== 'missing') results.push(result);
+      }
 
       const meta = await getImageMeta(env);
       const hashMeta = await getHashMeta(env);
       let changed = false;
       let hashChanged = false;
-      for (const key of keys) {
-        if (meta.images[key]) {
-          delete meta.images[key];
+      for (const result of results) {
+        if (meta.images[result.from]) {
+          if (result.action === 'moved' && result.to) {
+            meta.images[result.to] = meta.images[result.from];
+          }
+          delete meta.images[result.from];
           changed = true;
         }
-        if (hashMeta.hashes && hashMeta.hashes[key]) {
-          delete hashMeta.hashes[key];
+        if (hashMeta.hashes && hashMeta.hashes[result.from]) {
+          if (result.action === 'moved' && result.to) {
+            hashMeta.hashes[result.to] = hashMeta.hashes[result.from];
+          }
+          delete hashMeta.hashes[result.from];
           hashChanged = true;
         }
       }
