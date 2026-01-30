@@ -124,12 +124,18 @@ export function FolderNav({
   };
 
   const allFolders = [...new Set(folders)].sort();
-  const systemFolderNames = new Set(['temp', 'trash']);
-  const systemFolders = allFolders.filter(folder => systemFolderNames.has(folder.toLowerCase()));
+  const systemFolderKeys = ['temp', 'trash'];
+  const systemFolderNames = new Set(systemFolderKeys);
+  const systemFolderMap = new Map<string, string>();
+  allFolders.forEach(folder => {
+    const key = folder.toLowerCase();
+    if (systemFolderNames.has(key)) systemFolderMap.set(key, folder);
+  });
+  const systemFolders = systemFolderKeys.map(key => systemFolderMap.get(key) ?? key);
   const normalFolders = allFolders.filter(folder => !systemFolderNames.has(folder.toLowerCase()));
   const favCount = getFavoriteCount();
   const totalCount = totalStats?.count || 0;
-  const hasFolders = normalFolders.length > 0 || systemFolders.length > 0;
+  const hasFolders = normalFolders.length > 0;
   const allActive = currentFolder === '' && !showFavorites && !activeTag;
 
   const formatSize = (bytes: number) => {
