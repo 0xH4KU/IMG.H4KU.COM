@@ -127,6 +127,7 @@ export function FolderNav({
   const favCount = getFavoriteCount();
   const totalCount = totalStats?.count || 0;
   const hasFolders = allFolders.length > 0;
+  const allActive = currentFolder === '' && !showFavorites && !activeTag;
 
   const formatSize = (bytes: number) => {
     if (bytes < 1024) return `${bytes} B`;
@@ -215,9 +216,9 @@ export function FolderNav({
     <nav className={styles.nav}>
       <div className={styles.groupHeader}>Library</div>
       <ul className={`${styles.list} ${styles.libraryList}`}>
-        <li>
+        <li className={`${styles.listRow} ${allActive ? styles.rowActive : ''}`}>
           <button
-            className={`${styles.item} ${currentFolder === '' && !showFavorites && !activeTag ? styles.active : ''}`}
+            className={`${styles.item} ${allActive ? styles.active : ''}`}
             onClick={() => handleFolderClick('')}
           >
             <Home size={16} />
@@ -225,7 +226,7 @@ export function FolderNav({
             {totalCount > 0 && <span className={styles.badge}>{totalCount}</span>}
           </button>
         </li>
-        <li>
+        <li className={`${styles.listRow} ${showFavorites ? styles.rowActive : ''}`}>
           <button
             className={`${styles.item} ${showFavorites ? styles.active : ''}`}
             onClick={handleFavoritesClick}
@@ -286,11 +287,15 @@ export function FolderNav({
           </li>
         )}
         {allFolders.map(folder => {
+          const isActive = currentFolder === folder && !showFavorites && !activeTag;
           const stats = folderStats[folder];
           return (
-            <li key={folder} className={styles.folderRow}>
+            <li
+              key={folder}
+              className={`${styles.folderRow} ${isActive ? styles.rowActive : ''}`}
+            >
               <button
-                className={`${styles.item} ${currentFolder === folder && !showFavorites && !activeTag ? styles.active : ''}`}
+                className={`${styles.item} ${isActive ? styles.active : ''}`}
                 onClick={() => handleFolderClick(folder)}
               >
                 <Folder size={16} />
