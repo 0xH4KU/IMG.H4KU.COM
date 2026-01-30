@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, MouseEvent as ReactMouseEvent } from 'react';
+import { useState, useEffect, useRef, useLayoutEffect, MouseEvent as ReactMouseEvent } from 'react';
 import { Folder, FolderPlus, Home, Star, MoreHorizontal, Pencil, Merge, Trash2, Share2, Clock } from 'lucide-react';
 import { getAuthToken } from '../contexts/AuthContext';
 import { useImageMeta, TAG_COLORS, TagColor } from '../contexts/ImageMetaContext';
@@ -102,7 +102,7 @@ export function FolderNav({
     };
   }, [menu]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!menu || !menuRef.current || !navRef.current) return;
     const rect = menuRef.current.getBoundingClientRect();
     const navWidth = navRef.current.clientWidth;
