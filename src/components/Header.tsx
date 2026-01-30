@@ -80,7 +80,7 @@ export function Header({ selectedDomain, onDomainChange, onLogout, onToggleSideb
             <span className={styles.iconLabel}>Deliveries</span>
           </button>
 
-          <button className={styles.iconBtn} onClick={onOpenTools} title="Tools">
+          <button className={`${styles.iconBtn} ${styles.toolBtn}`} onClick={onOpenTools} title="Tools">
             <Wrench size={18} />
             <span className={styles.iconLabel}>Tools</span>
           </button>

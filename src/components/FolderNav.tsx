@@ -101,6 +101,31 @@ export function FolderNav({
     };
   }, [menu]);
 
+  useEffect(() => {
+    if (!menu || !menuRef.current) return;
+    const rect = menuRef.current.getBoundingClientRect();
+    const padding = 8;
+    let nextX = menu.x;
+    let nextY = menu.y;
+
+    if (rect.right > window.innerWidth - padding) {
+      nextX = Math.max(padding, menu.x - (rect.right - window.innerWidth + padding));
+    }
+    if (rect.left < padding) {
+      nextX = padding;
+    }
+    if (rect.bottom > window.innerHeight - padding) {
+      nextY = Math.max(padding, menu.y - (rect.bottom - window.innerHeight + padding));
+    }
+    if (rect.top < padding) {
+      nextY = padding;
+    }
+
+    if (nextX !== menu.x || nextY !== menu.y) {
+      setMenu({ ...menu, x: nextX, y: nextY });
+    }
+  }, [menu]);
+
   const handleFolderClick = (folder: string) => {
     onShowFavorites(false);
     onTagFilter(null);

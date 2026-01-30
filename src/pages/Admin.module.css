@@ -13,6 +13,7 @@
   padding-top: var(--topbar-offset);
   overflow: hidden;
   position: relative;
+  min-height: 0;
 }
 
 .sidebar {
@@ -110,6 +111,7 @@
   overflow: hidden;
   padding: 18px;
   gap: 16px;
+  min-height: 0;
 }
 
 @media (min-width: 769px) {

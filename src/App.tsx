@@ -26,6 +26,11 @@ function AppContent() {
     return () => window.removeEventListener('popstate', checkRoute);
   }, []);
 
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    document.body.setAttribute('data-route', route);
+  }, [route]);
+
   if (route === 'share') {
     return <Share />;
   }

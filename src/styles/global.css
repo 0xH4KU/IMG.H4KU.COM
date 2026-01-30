@@ -75,8 +75,12 @@ body {
   font-size: var(--font-size-base);
   background: var(--color-background);
   color: var(--color-text);
-  overflow: hidden;
+  overflow: auto;
   overscroll-behavior: none;
+}
+
+body[data-route='console'] {
+  overflow: hidden;
 }
 
 #root {
@@ -116,5 +120,11 @@ img {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+}
+
+@media (max-width: 680px) {
+  :root {
+    --topbar-height: 96px;
   }
 }
