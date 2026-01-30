@@ -11,6 +11,11 @@ interface ShareModalProps {
   domain: 'h4ku' | 'lum';
 }
 
+const ADMIN_ORIGINS = {
+  h4ku: 'https://admin.img.h4ku.com',
+  lum: 'https://admin.img.lum.bio',
+};
+
 export function ShareModal({ open, onClose, items = [], folder = null, domain }: ShareModalProps) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -33,6 +38,16 @@ export function ShareModal({ open, onClose, items = [], folder = null, domain }:
   }, [open, domain]);
 
   if (!open) return null;
+
+  const resolveShareOrigin = (shareDomain: 'h4ku' | 'lum') => {
+    const origin = window.location.origin;
+    const host = window.location.hostname;
+    if (host === 'localhost' || host.endsWith('.pages.dev')) return origin;
+    if (shareDomain === 'lum') {
+      return host.includes('lum.bio') ? origin : ADMIN_ORIGINS.lum;
+    }
+    return host.includes('h4ku.com') ? origin : ADMIN_ORIGINS.h4ku;
+  };
 
   const createShare = async () => {
     if (items.length === 0 && !folder) {
@@ -60,7 +75,12 @@ export function ShareModal({ open, onClose, items = [], folder = null, domain }:
       });
       if (res.ok) {
         const data = await res.json();
-        setShareUrl(data.url || '');
+        const id = data.share?.id;
+        if (id) {
+          setShareUrl(`${resolveShareOrigin(shareDomain)}/share/${id}`);
+        } else {
+          setShareUrl(data.url || '');
+        }
       } else {
         setError(await res.text());
       }

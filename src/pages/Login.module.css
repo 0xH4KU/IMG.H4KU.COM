@@ -28,6 +28,12 @@
   color: var(--color-text);
 }
 
+.brand {
+  font-size: 0.85rem;
+  letter-spacing: 0.18em;
+  color: var(--color-text-muted);
+}
+
 .title {
   font-size: 1.25rem;
   font-weight: 400;

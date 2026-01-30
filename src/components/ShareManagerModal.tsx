@@ -19,6 +19,11 @@ interface ShareInfo {
   domain?: string;
 }
 
+const ADMIN_ORIGINS = {
+  h4ku: 'https://admin.img.h4ku.com',
+  lum: 'https://admin.img.lum.bio',
+};
+
 export function ShareManagerModal({ open, onClose }: ShareManagerModalProps) {
   const [shares, setShares] = useState<ShareInfo[]>([]);
   const [loading, setLoading] = useState(false);
@@ -53,8 +58,19 @@ export function ShareManagerModal({ open, onClose }: ShareManagerModalProps) {
 
   if (!open) return null;
 
-  const copyLink = async (id: string) => {
-    const url = `${window.location.origin}/share/${id}`;
+  const resolveShareOrigin = (domain?: string) => {
+    const origin = window.location.origin;
+    const host = window.location.hostname;
+    if (host === 'localhost' || host.endsWith('.pages.dev')) return origin;
+    const normalized = domain === 'lum' ? 'lum' : 'h4ku';
+    if (normalized === 'lum') {
+      return host.includes('lum.bio') ? origin : ADMIN_ORIGINS.lum;
+    }
+    return host.includes('h4ku.com') ? origin : ADMIN_ORIGINS.h4ku;
+  };
+
+  const copyLink = async (id: string, domain?: string) => {
+    const url = `${resolveShareOrigin(domain)}/share/${id}`;
     await navigator.clipboard.writeText(url);
     setCopiedId(id);
     setTimeout(() => setCopiedId(''), 1500);
@@ -112,7 +128,7 @@ export function ShareManagerModal({ open, onClose }: ShareManagerModalProps) {
                   </div>
                 </div>
                 <div className={styles.actions}>
-                  <button className={styles.actionBtn} onClick={() => copyLink(share.id)}>
+                  <button className={styles.actionBtn} onClick={() => copyLink(share.id, share.domain)}>
                     <Copy size={14} />
                     {copiedId === share.id ? 'Copied' : 'Copy'}
                   </button>

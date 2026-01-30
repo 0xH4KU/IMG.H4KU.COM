@@ -17,6 +17,10 @@ function authenticate(request, env) {
 }
 
 const SHARE_KEY = '.config/share-meta.json';
+const ADMIN_ORIGINS = {
+  h4ku: 'https://admin.img.h4ku.com',
+  lum: 'https://admin.img.lum.bio',
+};
 
 async function getShareMeta(env) {
   try {
@@ -54,6 +58,15 @@ async function hashPassword(password, salt) {
 function publicShare(share) {
   const { passwordHash, passwordSalt, ...rest } = share;
   return rest;
+}
+
+function resolveShareOrigin(request, domain) {
+  const origin = new URL(request.url).origin;
+  if (origin.includes('localhost') || origin.includes('.pages.dev')) return origin;
+  if (domain === 'lum') {
+    return origin.includes('lum.bio') ? origin : ADMIN_ORIGINS.lum;
+  }
+  return origin.includes('h4ku.com') ? origin : ADMIN_ORIGINS.h4ku;
 }
 
 export async function onRequestGet(context) {
@@ -141,7 +154,7 @@ export async function onRequestPost(context) {
     meta.shares[id] = share;
     await saveShareMeta(env, meta);
 
-    const origin = new URL(request.url).origin;
+    const origin = resolveShareOrigin(request, domain);
     return Response.json({ ok: true, share: publicShare(share), url: `${origin}/share/${id}` });
   } catch (err) {
     await logError(env, {

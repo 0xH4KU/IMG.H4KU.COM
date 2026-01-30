@@ -1,5 +1,6 @@
 import { useState, FormEvent } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { getBrandDomainLabel } from '../utils/brand';
 import { Lock, AlertCircle } from 'lucide-react';
 import styles from './Login.module.css';
 
@@ -27,6 +28,7 @@ export function Login() {
     <div className={styles.container}>
       <form className={styles.form} onSubmit={handleSubmit}>
         <div className={styles.header}>
+          <div className={styles.brand}>{getBrandDomainLabel()}</div>
           <Lock size={32} strokeWidth={1.5} />
           <h1 className={styles.title}>Admin Login</h1>
           <p className={styles.subtitle}>Use your admin password to continue.</p>

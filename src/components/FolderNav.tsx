@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, MouseEvent as ReactMouseEvent } from 'react';
-import { Folder, FolderPlus, Home, Star, MoreHorizontal, Pencil, Merge, Trash2, Share2 } from 'lucide-react';
+import { Folder, FolderPlus, Home, Star, MoreHorizontal, Pencil, Merge, Trash2, Share2, Clock } from 'lucide-react';
 import { getAuthToken } from '../contexts/AuthContext';
 import { useImageMeta, TAG_COLORS, TagColor } from '../contexts/ImageMetaContext';
 import styles from './FolderNav.module.css';
@@ -124,9 +124,12 @@ export function FolderNav({
   };
 
   const allFolders = [...new Set(folders)].sort();
+  const systemFolderNames = new Set(['temp', 'trash']);
+  const systemFolders = allFolders.filter(folder => systemFolderNames.has(folder.toLowerCase()));
+  const normalFolders = allFolders.filter(folder => !systemFolderNames.has(folder.toLowerCase()));
   const favCount = getFavoriteCount();
   const totalCount = totalStats?.count || 0;
-  const hasFolders = allFolders.length > 0;
+  const hasFolders = normalFolders.length > 0 || systemFolders.length > 0;
   const allActive = currentFolder === '' && !showFavorites && !activeTag;
 
   const formatSize = (bytes: number) => {
@@ -286,7 +289,7 @@ export function FolderNav({
             <span className={styles.emptyHint}>Click + to create one.</span>
           </li>
         )}
-        {allFolders.map(folder => {
+        {normalFolders.map(folder => {
           const isActive = currentFolder === folder && !showFavorites && !activeTag;
           const stats = folderStats[folder];
           return (
@@ -320,6 +323,41 @@ export function FolderNav({
           );
         })}
       </ul>
+
+      {systemFolders.length > 0 && (
+        <div className={styles.systemSection}>
+          <div className={styles.sectionHeader}>System</div>
+          <ul className={`${styles.list} ${styles.systemList}`}>
+            {systemFolders.map(folder => {
+              const isActive = currentFolder === folder && !showFavorites && !activeTag;
+              const stats = folderStats[folder];
+              const isTrash = folder.toLowerCase() === 'trash';
+              return (
+                <li
+                  key={folder}
+                  className={`${styles.listRow} ${isActive ? styles.rowActive : ''}`}
+                >
+                  <button
+                    className={`${styles.item} ${isActive ? styles.active : ''}`}
+                    onClick={() => handleFolderClick(folder)}
+                  >
+                    {isTrash ? <Trash2 size={16} /> : <Clock size={16} />}
+                    <span className={styles.folderName}>{folder}</span>
+                    {stats && (
+                      <span
+                        className={styles.folderStats}
+                        title={`${stats.count} files • ${formatSize(stats.size)}`}
+                      >
+                        {stats.count}
+                      </span>
+                    )}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
 
       <div className={styles.section}>
         <div className={styles.sectionHeader}>Tags</div>

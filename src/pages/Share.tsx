@@ -25,8 +25,9 @@ const DOMAINS = {
   lum: 'https://img.lum.bio',
 };
 
-const useFileProxy = window.location.hostname === 'localhost' ||
-  window.location.hostname.endsWith('.pages.dev');
+const host = window.location.hostname;
+const useFileProxy = host === 'localhost' || host.endsWith('.pages.dev');
+const useDownloadProxy = useFileProxy || host.startsWith('admin.');
 
 export function Share() {
   const shareId = useMemo(() => {
@@ -88,6 +89,12 @@ export function Share() {
     return useFileProxy ? `/api/file?key=${encodeURIComponent(key)}` : `${DOMAINS[domain]}/${key}`;
   };
 
+  const getDownloadUrl = (key: string) => {
+    if (useDownloadProxy) return `/api/file?key=${encodeURIComponent(key)}`;
+    const domain = share?.domain === 'lum' ? 'lum' : 'h4ku';
+    return `${DOMAINS[domain]}/${key}`;
+  };
+
   const formatSize = (bytes?: number) => {
     if (!bytes && bytes !== 0) return '';
     if (bytes < 1024) return `${bytes} B`;
@@ -103,7 +110,7 @@ export function Share() {
       await downloadZip({
         name: share?.title ? share.title.replace(/[^a-z0-9-_]+/gi, '-').replace(/^-+|-+$/g, '') : 'delivery',
         keys,
-        getUrl: getImageUrl,
+        getUrl: getDownloadUrl,
       });
     } finally {
       setDownloading(false);
