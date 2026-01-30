@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, MouseEvent as ReactMouseEvent } from 'react';
-import { Folder, FolderPlus, ChevronRight, Home, Star, MoreHorizontal, Pencil, Merge, Trash2, Share2 } from 'lucide-react';
+import { Folder, FolderPlus, Home, Star, MoreHorizontal, Pencil, Merge, Trash2, Share2 } from 'lucide-react';
 import { getAuthToken } from '../contexts/AuthContext';
 import { useImageMeta, TAG_COLORS, TagColor } from '../contexts/ImageMetaContext';
 import styles from './FolderNav.module.css';
@@ -57,30 +57,30 @@ export function FolderNav({
   };
 
   const handleAddFolder = async () => {
-    if (newFolder.trim()) {
-      const folderName = newFolder.trim().replace(/[^a-zA-Z0-9-_]/g, '-');
-      if (!folders.includes(folderName)) {
-        const token = getAuthToken();
-        try {
-          const res = await fetch('/api/folders', {
-            method: 'POST',
-            headers: {
-              Authorization: `Bearer ${token}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ name: folderName }),
-          });
-          if (res.ok) {
-            await fetchFolders();
-            onFolderChange(folderName);
-          }
-        } catch {
-          // Ignore errors
+    const trimmed = newFolder.trim();
+    if (!trimmed) return;
+    const folderName = trimmed.replace(/[^a-zA-Z0-9-_]/g, '-');
+    if (!folders.includes(folderName)) {
+      const token = getAuthToken();
+      try {
+        const res = await fetch('/api/folders', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ name: folderName }),
+        });
+        if (res.ok) {
+          await fetchFolders();
+          onFolderChange(folderName);
         }
+      } catch {
+        // Ignore errors
       }
-      setNewFolder('');
-      setShowInput(false);
     }
+    setNewFolder('');
+    setShowInput(false);
   };
 
   useEffect(() => {
@@ -126,6 +126,7 @@ export function FolderNav({
   const allFolders = [...new Set(folders)].sort();
   const favCount = getFavoriteCount();
   const totalCount = totalStats?.count || 0;
+  const hasFolders = allFolders.length > 0;
 
   const formatSize = (bytes: number) => {
     if (bytes < 1024) return `${bytes} B`;
@@ -212,35 +213,8 @@ export function FolderNav({
 
   return (
     <nav className={styles.nav}>
-      <div className={styles.header}>
-        <span>Folders</span>
-        <button
-          className={styles.addBtn}
-          onClick={() => setShowInput(!showInput)}
-          title="New folder"
-        >
-          <FolderPlus size={16} />
-        </button>
-      </div>
-
-      {showInput && (
-        <div className={styles.inputWrapper}>
-          <input
-            type="text"
-            value={newFolder}
-            onChange={e => setNewFolder(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleAddFolder()}
-            placeholder="Folder name"
-            className={styles.input}
-            autoFocus
-          />
-          <button type="button" className={styles.createBtn} onClick={handleAddFolder}>
-            Create
-          </button>
-        </div>
-      )}
-
-      <ul className={styles.list}>
+      <div className={styles.groupHeader}>Library</div>
+      <ul className={`${styles.list} ${styles.libraryList}`}>
         <li>
           <button
             className={`${styles.item} ${currentFolder === '' && !showFavorites && !activeTag ? styles.active : ''}`}
@@ -261,6 +235,56 @@ export function FolderNav({
             {favCount > 0 && <span className={styles.badge}>{favCount}</span>}
           </button>
         </li>
+      </ul>
+
+      <div className={styles.header}>
+        <span>Folders</span>
+        <button
+          type="button"
+          className={styles.addBtn}
+          onClick={() => setShowInput(!showInput)}
+          title="New folder"
+          aria-expanded={showInput}
+        >
+          <FolderPlus size={16} />
+        </button>
+      </div>
+
+      {showInput && (
+        <div className={styles.inputWrapper}>
+          <input
+            type="text"
+            value={newFolder}
+            onChange={e => setNewFolder(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter') handleAddFolder();
+              if (e.key === 'Escape') {
+                setShowInput(false);
+                setNewFolder('');
+              }
+            }}
+            placeholder="Folder name"
+            className={styles.input}
+            autoFocus
+          />
+          <button
+            type="button"
+            className={styles.createBtn}
+            onClick={handleAddFolder}
+            disabled={!newFolder.trim()}
+          >
+            Create
+          </button>
+        </div>
+      )}
+
+      <ul className={`${styles.list} ${styles.folderList}`}>
+        {!hasFolders && (
+          <li className={styles.emptyState}>
+            <span>No folders yet</span>
+            <span className={styles.emptyHint}>Click + to create one.</span>
+          </li>
+        )}
         {allFolders.map(folder => {
           const stats = folderStats[folder];
           return (
@@ -279,7 +303,6 @@ export function FolderNav({
                     {stats.count}
                   </span>
                 )}
-                <ChevronRight size={14} className={styles.chevron} />
               </button>
               <button
                 className={styles.folderMenuBtn}

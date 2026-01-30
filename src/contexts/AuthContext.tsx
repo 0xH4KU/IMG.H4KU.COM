@@ -11,16 +11,59 @@ const AuthContext = createContext<AuthContextType | null>(null);
 
 const AUTH_KEY = 'img_auth_token';
 
+const getLocalStorage = (): Storage | null => {
+  try {
+    return window.localStorage;
+  } catch {
+    return null;
+  }
+};
+
+const getSessionStorage = (): Storage | null => {
+  try {
+    return window.sessionStorage;
+  } catch {
+    return null;
+  }
+};
+
+const getStoredToken = (): string | null => {
+  const local = getLocalStorage();
+  const localToken = local?.getItem(AUTH_KEY);
+  if (localToken) return localToken;
+  const session = getSessionStorage();
+  const sessionToken = session?.getItem(AUTH_KEY);
+  if (sessionToken && local) {
+    local.setItem(AUTH_KEY, sessionToken);
+    session?.removeItem(AUTH_KEY);
+  }
+  return sessionToken || null;
+};
+
+const setStoredToken = (token: string) => {
+  const local = getLocalStorage();
+  if (local) {
+    local.setItem(AUTH_KEY, token);
+    return;
+  }
+  getSessionStorage()?.setItem(AUTH_KEY, token);
+};
+
+const clearStoredToken = () => {
+  getLocalStorage()?.removeItem(AUTH_KEY);
+  getSessionStorage()?.removeItem(AUTH_KEY);
+};
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const token = sessionStorage.getItem(AUTH_KEY);
+    const token = getStoredToken();
     if (token) {
       verifyToken(token).then(valid => {
         setIsAuthenticated(valid);
-        if (!valid) sessionStorage.removeItem(AUTH_KEY);
+        if (!valid) clearStoredToken();
         setIsLoading(false);
       });
     } else {
@@ -38,7 +81,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (res.ok) {
         const { token } = await res.json();
-        sessionStorage.setItem(AUTH_KEY, token);
+        setStoredToken(token);
         setIsAuthenticated(true);
         return true;
       }
@@ -49,7 +92,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = () => {
-    sessionStorage.removeItem(AUTH_KEY);
+    clearStoredToken();
     setIsAuthenticated(false);
   };
 
@@ -80,5 +123,5 @@ async function verifyToken(token: string): Promise<boolean> {
 }
 
 export function getAuthToken(): string | null {
-  return sessionStorage.getItem(AUTH_KEY);
+  return getStoredToken();
 }
