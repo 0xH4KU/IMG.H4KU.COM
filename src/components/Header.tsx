@@ -69,8 +69,8 @@ export function Header({ selectedDomain, onDomainChange, onLogout, onToggleSideb
             value={selectedDomain}
             onChange={e => onDomainChange(e.target.value as 'h4ku' | 'lum')}
           >
-            <option value="h4ku">img.h4ku.com</option>
-            <option value="lum">img.lum.bio</option>
+            <option value="h4ku">h4ku.com</option>
+            <option value="lum">lum.bio</option>
           </select>
         </div>
 

@@ -3,6 +3,7 @@
   flex-direction: column;
   height: 100%;
   min-height: 0;
+  position: relative;
 }
 
 .groupHeader {
@@ -273,9 +274,10 @@
 }
 
 .menu {
-  position: fixed;
+  position: absolute;
   z-index: 100;
   min-width: 160px;
+  max-width: calc(100% - 16px);
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);

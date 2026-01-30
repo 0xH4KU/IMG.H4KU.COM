@@ -32,6 +32,7 @@ export function FolderNav({
   const [totalStats, setTotalStats] = useState<{ count: number; size: number } | null>(null);
   const [menu, setMenu] = useState<{ folder: string; x: number; y: number } | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const navRef = useRef<HTMLElement>(null);
 
   const { getFavoriteCount, getTagCount } = useImageMeta();
 
@@ -102,24 +103,21 @@ export function FolderNav({
   }, [menu]);
 
   useEffect(() => {
-    if (!menu || !menuRef.current) return;
+    if (!menu || !menuRef.current || !navRef.current) return;
     const rect = menuRef.current.getBoundingClientRect();
+    const navWidth = navRef.current.clientWidth;
+    const navHeight = navRef.current.clientHeight;
     const padding = 8;
     let nextX = menu.x;
     let nextY = menu.y;
 
-    if (rect.right > window.innerWidth - padding) {
-      nextX = Math.max(padding, menu.x - (rect.right - window.innerWidth + padding));
-    }
-    if (rect.left < padding) {
-      nextX = padding;
-    }
-    if (rect.bottom > window.innerHeight - padding) {
-      nextY = Math.max(padding, menu.y - (rect.bottom - window.innerHeight + padding));
-    }
-    if (rect.top < padding) {
-      nextY = padding;
-    }
+    const maxX = navWidth - rect.width - padding;
+    const maxY = navHeight - rect.height - padding;
+
+    if (nextX < padding) nextX = padding;
+    if (nextX > maxX) nextX = Math.max(padding, maxX);
+    if (nextY < padding) nextY = padding;
+    if (nextY > maxY) nextY = Math.max(padding, maxY);
 
     if (nextX !== menu.x || nextY !== menu.y) {
       setMenu({ ...menu, x: nextX, y: nextY });
@@ -172,7 +170,10 @@ export function FolderNav({
   const openMenu = (e: ReactMouseEvent<HTMLButtonElement>, folder: string) => {
     e.stopPropagation();
     const rect = e.currentTarget.getBoundingClientRect();
-    setMenu({ folder, x: rect.left, y: rect.bottom + 6 });
+    const navRect = navRef.current?.getBoundingClientRect();
+    const baseLeft = navRect?.left ?? 0;
+    const baseTop = navRect?.top ?? 0;
+    setMenu({ folder, x: rect.left - baseLeft, y: rect.bottom - baseTop + 6 });
   };
 
   const renameFolder = async (folder: string) => {
@@ -247,7 +248,7 @@ export function FolderNav({
   };
 
   return (
-    <nav className={styles.nav}>
+    <nav ref={navRef} className={styles.nav}>
       <div className={styles.groupHeader}>Library</div>
       <ul className={`${styles.list} ${styles.libraryList}`}>
         <li className={`${styles.listRow} ${allActive ? styles.rowActive : ''}`}>
