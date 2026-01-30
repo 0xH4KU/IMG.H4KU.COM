@@ -108,7 +108,9 @@ export function Admin() {
   }, []);
 
   useEffect(() => {
+    if (typeof window === 'undefined') return;
     if (!sidebarOpen) return;
+    if (window.innerWidth > 768) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => { document.body.style.overflow = prev; };

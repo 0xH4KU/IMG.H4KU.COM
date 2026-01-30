@@ -79,9 +79,6 @@ body {
   overscroll-behavior: none;
 }
 
-body[data-route='console'] {
-  overflow: hidden;
-}
 
 #root {
   min-height: 100vh;
