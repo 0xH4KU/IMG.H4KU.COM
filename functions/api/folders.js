@@ -114,8 +114,11 @@ export async function onRequestGet(context) {
 
     for (const obj of objects) {
       if (obj.key.startsWith('.config/')) continue;
-      total.count += 1;
-      total.size += obj.size;
+      const isTrash = obj.key.startsWith('trash/');
+      if (!isTrash) {
+        total.count += 1;
+        total.size += obj.size;
+      }
       const parts = obj.key.split('/');
       if (parts.length > 1) {
         const folder = parts[0];

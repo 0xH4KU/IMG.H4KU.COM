@@ -1,5 +1,5 @@
 import { getHashMeta, saveHashMeta } from '../../_utils/meta';
-import { moveToTrash } from '../../_utils/trash';
+import { moveToTrash, restoreFromTrash } from '../../_utils/trash';
 import { logError } from '../../_utils/log';
 
 // Auth utilities (inlined)
@@ -43,6 +43,7 @@ export async function onRequestPost(context) {
   try {
     const body = await request.json();
     const keys = Array.isArray(body.keys) ? body.keys.filter(k => typeof k === 'string') : [];
+    const action = body.action === 'restore' ? 'restore' : 'delete';
     if (keys.length === 0) {
       return new Response('Missing keys', { status: 400 });
     }
@@ -50,8 +51,10 @@ export async function onRequestPost(context) {
     const results = [];
     let missing = 0;
     for (const key of keys) {
-      const result = await moveToTrash(env, key);
-      if (result.action === 'missing') {
+      const result = action === 'restore'
+        ? await restoreFromTrash(env, key)
+        : await moveToTrash(env, key);
+      if (result.action === 'missing' || result.action === 'not_trash') {
         missing += 1;
         continue;
       }
@@ -63,7 +66,7 @@ export async function onRequestPost(context) {
     let moved = 0;
     for (const result of results) {
       if (!meta.images[result.from]) continue;
-      if (result.action === 'moved' && result.to) {
+      if ((result.action === 'moved' || result.action === 'restored') && result.to) {
         meta.images[result.to] = meta.images[result.from];
         moved += 1;
       } else {
@@ -79,7 +82,7 @@ export async function onRequestPost(context) {
       let hashMoved = 0;
       for (const result of results) {
         if (!hashMeta.hashes || !hashMeta.hashes[result.from]) continue;
-        if (result.action === 'moved' && result.to) {
+        if ((result.action === 'moved' || result.action === 'restored') && result.to) {
           hashMeta.hashes[result.to] = hashMeta.hashes[result.from];
           hashMoved += 1;
         } else {
@@ -100,6 +103,7 @@ export async function onRequestPost(context) {
     return Response.json({
       ok: true,
       trashed: results.filter(r => r.action === 'moved').length,
+      restored: results.filter(r => r.action === 'restored').length,
       deleted: results.filter(r => r.action === 'deleted').length,
       missing,
       metaRemoved: removed,

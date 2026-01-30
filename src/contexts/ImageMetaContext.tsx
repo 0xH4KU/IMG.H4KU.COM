@@ -112,11 +112,11 @@ export function ImageMetaProvider({ children }: { children: ReactNode }) {
   }, [meta]);
 
   const getFavoriteCount = useCallback((): number => {
-    return Object.values(meta).filter(m => m.favorite).length;
+    return Object.entries(meta).filter(([key, m]) => !key.startsWith('trash/') && m.favorite).length;
   }, [meta]);
 
   const getTagCount = useCallback((tag: TagColor): number => {
-    return Object.values(meta).filter(m => m.tags.includes(tag)).length;
+    return Object.entries(meta).filter(([key, m]) => !key.startsWith('trash/') && m.tags.includes(tag)).length;
   }, [meta]);
 
   return (

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef, MouseEvent as ReactMouseEvent } from 'react';
-import { Copy, Check, RefreshCw, Star, MoreHorizontal, Trash2, Download, Tags, Share2, FileText, Code, Square, CheckSquare, Pencil, Folder } from 'lucide-react';
+import { Copy, Check, RefreshCw, Star, MoreHorizontal, Trash2, Download, Tags, Share2, FileText, Code, Square, CheckSquare, Pencil, Folder, RotateCcw } from 'lucide-react';
 import { getAuthToken } from '../contexts/AuthContext';
 import { useImageMeta, TagColor, TAG_COLORS } from '../contexts/ImageMetaContext';
 import { TagDots } from './TagDots';
@@ -79,6 +79,7 @@ export function ImageGrid({ folder, domain, refreshKey, onRefresh, activeTag, sh
   const tagMenuRef = useRef<HTMLDivElement>(null);
 
   const { getTags, isFavorite, toggleTag, toggleFavorite, refreshMeta } = useImageMeta();
+  const isTrashView = folder.toLowerCase() === 'trash';
 
   const fetchImages = useCallback(async () => {
     setLoading(true);
@@ -164,12 +165,32 @@ export function ImageGrid({ folder, domain, refreshKey, onRefresh, activeTag, sh
   };
 
   const deleteImage = async (key: string) => {
-    if (!confirm('Delete this image?')) return;
+    const message = isTrashView ? 'Delete this image permanently?' : 'Move this image to trash?';
+    if (!confirm(message)) return;
     const token = getAuthToken();
     try {
       const res = await fetch(`/api/images?key=${encodeURIComponent(key)}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        onRefresh();
+        refreshMeta();
+      }
+    } catch { /* ignore */ }
+  };
+
+  const restoreImage = async (key: string) => {
+    if (!confirm('Restore this image to its original folder?')) return;
+    const token = getAuthToken();
+    try {
+      const res = await fetch('/api/images', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ key }),
       });
       if (res.ok) {
         onRefresh();
@@ -200,7 +221,10 @@ export function ImageGrid({ folder, domain, refreshKey, onRefresh, activeTag, sh
 
   const deleteSelected = async () => {
     if (selectedKeys.size === 0) return;
-    if (!confirm(`Delete ${selectedKeys.size} selected image(s)?`)) return;
+    const message = isTrashView
+      ? `Delete ${selectedKeys.size} selected image(s) permanently?`
+      : `Move ${selectedKeys.size} selected image(s) to trash?`;
+    if (!confirm(message)) return;
     const token = getAuthToken();
     try {
       const res = await fetch('/api/images/batch', {
@@ -210,6 +234,29 @@ export function ImageGrid({ folder, domain, refreshKey, onRefresh, activeTag, sh
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ keys: Array.from(selectedKeys) }),
+      });
+      if (res.ok) {
+        clearSelection();
+        onRefresh();
+        refreshMeta();
+      }
+    } catch {
+      // Ignore errors
+    }
+  };
+
+  const restoreSelected = async () => {
+    if (selectedKeys.size === 0) return;
+    if (!confirm(`Restore ${selectedKeys.size} selected image(s) to their original folders?`)) return;
+    const token = getAuthToken();
+    try {
+      const res = await fetch('/api/images/batch', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ keys: Array.from(selectedKeys), action: 'restore' }),
       });
       if (res.ok) {
         clearSelection();
@@ -541,7 +588,7 @@ export function ImageGrid({ folder, domain, refreshKey, onRefresh, activeTag, sh
     : activeTag
       ? 'No images with this tag yet.'
       : folder
-        ? 'No images in this folder yet.'
+        ? (isTrashView ? 'Trash is empty.' : 'No images in this folder yet.')
         : 'No images yet. Drop files above to upload.';
 
   return (
@@ -611,9 +658,15 @@ export function ImageGrid({ folder, domain, refreshKey, onRefresh, activeTag, sh
               <Share2 size={14} />
               Delivery
             </button>
+            {isTrashView && (
+              <button className={styles.bulkBtn} onClick={restoreSelected}>
+                <RotateCcw size={14} />
+                Restore
+              </button>
+            )}
             <button className={`${styles.bulkBtn} ${styles.danger}`} onClick={deleteSelected}>
               <Trash2 size={14} />
-              Delete
+              {isTrashView ? 'Delete forever' : 'Delete'}
             </button>
           </div>
         </div>
@@ -654,6 +707,7 @@ export function ImageGrid({ folder, domain, refreshKey, onRefresh, activeTag, sh
           imageKey={contextMenu.key}
           isFavorite={isFavorite(contextMenu.key)}
           tags={getTags(contextMenu.key)}
+          isTrashView={isTrashView}
           onClose={() => setContextMenu(null)}
           onToggleFavorite={() => toggleFavorite(contextMenu.key)}
           onToggleTag={(tag) => toggleTag(contextMenu.key, tag)}
@@ -662,6 +716,7 @@ export function ImageGrid({ folder, domain, refreshKey, onRefresh, activeTag, sh
           onCopyHtml={() => copyHtml(contextMenu.key)}
           onOpenInNewTab={() => window.open(getImageUrl(contextMenu.key), '_blank')}
           onDelete={() => deleteImage(contextMenu.key)}
+          onRestore={isTrashView ? () => restoreImage(contextMenu.key) : undefined}
         />
       )}
 

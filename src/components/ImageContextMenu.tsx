@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback } from 'react';
-import { Star, StarOff, Copy, ExternalLink, Trash2, FileText, Code } from 'lucide-react';
+import { Star, StarOff, Copy, ExternalLink, Trash2, FileText, Code, RotateCcw } from 'lucide-react';
 import { TAG_COLORS, TagColor } from '../contexts/ImageMetaContext';
 import styles from './ImageContextMenu.module.css';
 
@@ -9,6 +9,7 @@ interface ImageContextMenuProps {
   imageKey: string;
   isFavorite: boolean;
   tags: TagColor[];
+  isTrashView?: boolean;
   onClose: () => void;
   onToggleFavorite: () => void;
   onToggleTag: (tag: TagColor) => void;
@@ -17,6 +18,7 @@ interface ImageContextMenuProps {
   onCopyHtml: () => void;
   onOpenInNewTab: () => void;
   onDelete: () => void;
+  onRestore?: () => void;
 }
 
 export function ImageContextMenu({
@@ -24,6 +26,7 @@ export function ImageContextMenu({
   y,
   isFavorite,
   tags,
+  isTrashView = false,
   onClose,
   onToggleFavorite,
   onToggleTag,
@@ -32,6 +35,7 @@ export function ImageContextMenu({
   onCopyHtml,
   onOpenInNewTab,
   onDelete,
+  onRestore,
 }: ImageContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -80,6 +84,16 @@ export function ImageContextMenu({
       style={{ left: x, top: y }}
       onClick={e => e.stopPropagation()}
     >
+      {isTrashView && onRestore && (
+        <button
+          className={styles.item}
+          onClick={() => handleAction(onRestore)}
+        >
+          <RotateCcw size={16} />
+          <span>Restore</span>
+        </button>
+      )}
+
       <button
         className={styles.item}
         onClick={() => handleAction(onToggleFavorite)}
@@ -153,7 +167,7 @@ export function ImageContextMenu({
         onClick={() => handleAction(onDelete)}
       >
         <Trash2 size={16} />
-        <span>Delete</span>
+        <span>{isTrashView ? 'Delete Permanently' : 'Delete'}</span>
       </button>
     </div>
   );
