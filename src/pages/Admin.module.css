@@ -1,6 +1,8 @@
 .container {
   min-height: 100vh;
   min-height: 100dvh;
+  height: 100vh;
+  height: 100dvh;
   display: flex;
   flex-direction: column;
   position: relative;
@@ -14,8 +16,7 @@
   overflow: hidden;
   position: relative;
   min-height: 0;
-  height: calc(100vh - var(--topbar-offset));
-  height: calc(100dvh - var(--topbar-offset));
+  height: 100%;
 }
 
 .sidebar {
