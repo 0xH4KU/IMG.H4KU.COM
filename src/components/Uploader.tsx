@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, DragEvent, ChangeEvent, useEffect, KeyboardEvent as ReactKeyboardEvent } from 'react';
-import { Upload, X, Check, AlertCircle, Pause, Play, RotateCcw } from 'lucide-react';
+import { Upload, X, Check, AlertCircle, Pause, Play, RotateCcw, ChevronUp, ChevronDown } from 'lucide-react';
 import { getAuthToken } from '../contexts/AuthContext';
 import { generateThumbnail } from '../utils/thumbnail';
 import styles from './Uploader.module.css';
@@ -26,6 +26,7 @@ export function Uploader({ folder, onUploadComplete }: UploaderProps) {
   const [files, setFiles] = useState<UploadFile[]>([]);
   const [paused, setPaused] = useState(false);
   const [activeCount, setActiveCount] = useState(0);
+  const [collapsed, setCollapsed] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
   const folderRef = useRef(folder);
@@ -206,43 +207,45 @@ export function Uploader({ folder, onUploadComplete }: UploaderProps) {
 
   return (
     <div className={styles.container}>
-      <div
-        className={`${styles.dropzone} ${isDragging ? styles.dragging : ''}`}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-        onClick={() => inputRef.current?.click()}
-        onKeyDown={handleDropzoneKeyDown}
-        role="button"
-        tabIndex={0}
-        aria-label="Upload images"
-      >
-        <input
-          ref={inputRef}
-          type="file"
-          accept="image/*"
-          multiple
-          onChange={handleInputChange}
-          className={styles.input}
-        />
-        <input
-          ref={folderInputRef}
-          type="file"
-          multiple
-          onChange={handleFolderInputChange}
-          className={styles.input}
-          // @ts-expect-error webkitdirectory is supported by Chromium browsers
-          webkitdirectory="true"
-        />
-        <Upload size={32} strokeWidth={1.5} />
-        <p className={styles.dropText}>
-          Drop images here or <span className={styles.link}>click to select files</span>
-        </p>
-        <p className={styles.sizeHint}>Max size: 50 MB per file</p>
-        <p className={styles.folderHint}>
-          Uploading to: <strong>{folder || 'root'}/</strong>
-        </p>
-      </div>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        onChange={handleInputChange}
+        className={styles.input}
+      />
+      <input
+        ref={folderInputRef}
+        type="file"
+        multiple
+        onChange={handleFolderInputChange}
+        className={styles.input}
+        // @ts-expect-error webkitdirectory is supported by Chromium browsers
+        webkitdirectory="true"
+      />
+      {!collapsed && (
+        <div
+          className={`${styles.dropzone} ${isDragging ? styles.dragging : ''}`}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+          onClick={() => inputRef.current?.click()}
+          onKeyDown={handleDropzoneKeyDown}
+          role="button"
+          tabIndex={0}
+          aria-label="Upload images"
+        >
+          <Upload size={32} strokeWidth={1.5} />
+          <p className={styles.dropText}>
+            Drop images here or <span className={styles.link}>click to select files</span>
+          </p>
+          <p className={styles.sizeHint}>Max size: 50 MB per file</p>
+          <p className={styles.folderHint}>
+            Uploading to: <strong>{folder || 'root'}/</strong>
+          </p>
+        </div>
+      )}
 
       <div className={styles.dropActions}>
         <button className={styles.actionBtn} onClick={() => folderInputRef.current?.click()}>
@@ -254,6 +257,15 @@ export function Uploader({ folder, onUploadComplete }: UploaderProps) {
         <span className={styles.queueStatus}>
           {queueLabel}
         </span>
+        <button
+          type="button"
+          className={`${styles.actionBtn} ${styles.collapseBtn}`}
+          onClick={() => setCollapsed(prev => !prev)}
+          aria-expanded={!collapsed}
+        >
+          {collapsed ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+          {collapsed ? 'Expand' : 'Collapse'}
+        </button>
       </div>
 
       {files.length > 0 && (
