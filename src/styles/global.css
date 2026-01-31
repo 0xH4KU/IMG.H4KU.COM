@@ -79,6 +79,11 @@ body {
   overscroll-behavior: none;
 }
 
+body[data-route='share'] {
+  overflow: auto;
+  overscroll-behavior: auto;
+}
+
 
 #root {
   min-height: 100vh;

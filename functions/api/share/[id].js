@@ -1,4 +1,5 @@
 import { logError } from '../../_utils/log';
+import { listAllObjects } from '../../_utils/meta';
 
 const SHARE_KEY = '.config/share-meta.json';
 
@@ -45,6 +46,18 @@ async function buildItems(env, keys) {
   return results;
 }
 
+async function resolveShareKeys(env, share) {
+  if (share?.folder) {
+    const prefix = `${share.folder}/`;
+    const objects = await listAllObjects(env, prefix);
+    const keys = objects
+      .map(obj => obj.key)
+      .filter(key => !key.startsWith('.config/'));
+    return Array.from(new Set(keys));
+  }
+  return Array.isArray(share?.items) ? share.items : [];
+}
+
 export async function onRequestGet(context) {
   const { env, params } = context;
   const id = params.id;
@@ -58,7 +71,8 @@ export async function onRequestGet(context) {
       return Response.json({ error: 'password_required' }, { status: 401 });
     }
 
-    const items = await buildItems(env, share.items || []);
+    const keys = await resolveShareKeys(env, share);
+    const items = await buildItems(env, keys);
     return Response.json({ share: publicShare(share), items });
   } catch (err) {
     await logError(env, {
@@ -94,7 +108,8 @@ export async function onRequestPost(context) {
       return new Response('Invalid password', { status: 401 });
     }
 
-    const items = await buildItems(env, share.items || []);
+    const keys = await resolveShareKeys(env, share);
+    const items = await buildItems(env, keys);
     return Response.json({ share: publicShare(share), items });
   } catch (err) {
     await logError(env, {
