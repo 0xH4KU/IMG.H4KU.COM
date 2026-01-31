@@ -544,3 +544,18 @@
     display: none;
   }
 }
+
+/* Load more indicator */
+.loadMore {
+  padding: 16px 0;
+  min-height: 60px;
+}
+
+.loadingIndicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--color-text-muted);
+  font-size: 0.8125rem;
+}

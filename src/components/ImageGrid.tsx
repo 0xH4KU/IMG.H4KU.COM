@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef, MouseEvent as ReactMouseEvent } from 'react';
-import { Copy, Check, RefreshCw, Star, MoreHorizontal, Trash2, Download, Tags, Share2, FileText, Code, Square, CheckSquare, Pencil, Folder, RotateCcw } from 'lucide-react';
+import { Copy, Check, RefreshCw, Star, MoreHorizontal, Trash2, Download, Tags, Share2, FileText, Code, Square, CheckSquare, Pencil, Folder, RotateCcw, Loader2 } from 'lucide-react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { getAuthToken } from '../contexts/AuthContext';
 import { useImageMeta, TagColor, TAG_COLORS } from '../contexts/ImageMetaContext';
 import { TagDots } from './TagDots';
@@ -34,9 +35,13 @@ const DOMAINS = {
   lum: 'https://img.lum.bio',
 };
 
-// Use file proxy in development or Pages preview (before R2 custom domain is configured)
 const useFileProxy = window.location.hostname === 'localhost' ||
   window.location.hostname.endsWith('.pages.dev');
+
+const PAGE_SIZE = 50;
+const CARD_HEIGHT = 260;
+const LIST_ITEM_HEIGHT = 64;
+const GROUP_HEADER_HEIGHT = 48;
 
 function getFileExt(key: string): string {
   const name = key.split('/').pop() || '';
@@ -66,9 +71,16 @@ const TAG_LABEL: Record<string, string> = {
   blue: 'Blue', purple: 'Purple', gray: 'Gray',
 };
 
+type VirtualItem =
+  | { type: 'header'; label: string; count: number }
+  | { type: 'row'; images: ImageItem[] };
+
 export function ImageGrid({ folder, domain, refreshKey, onRefresh, activeTag, showFavorites, filters, onShareItems, onBulkRename, onBulkMove }: ImageGridProps) {
   const [images, setImages] = useState<ImageItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [cursor, setCursor] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(true);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [groupBy, setGroupBy] = useState<GroupBy>('none');
@@ -76,36 +88,79 @@ export function ImageGrid({ folder, domain, refreshKey, onRefresh, activeTag, sh
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
   const [tagMenu, setTagMenu] = useState<{ mode: 'add' | 'remove'; x: number; y: number } | null>(null);
   const [downloading, setDownloading] = useState(false);
+  const [columns, setColumns] = useState(4);
   const tagMenuRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const loadMoreRef = useRef<HTMLDivElement>(null);
 
   const { getTags, isFavorite, toggleTag, toggleFavorite, refreshMeta } = useImageMeta();
   const isTrashView = folder.toLowerCase() === 'trash';
 
-  const fetchImages = useCallback(async () => {
-    setLoading(true);
-    const token = getAuthToken();
-    try {
-      const params = new URLSearchParams();
-      if (folder) params.set('folder', folder);
+  // Fetch images with pagination
+  const fetchImages = useCallback(async (append = false) => {
+    if (append && (!hasMore || loadingMore)) return;
 
+    if (append) {
+      setLoadingMore(true);
+    } else {
+      setLoading(true);
+      setImages([]);
+      setCursor(null);
+      setHasMore(true);
+    }
+
+    const token = getAuthToken();
+    const params = new URLSearchParams();
+    if (folder) params.set('folder', folder);
+    params.set('limit', String(PAGE_SIZE));
+    if (append && cursor) params.set('cursor', cursor);
+
+    try {
       const res = await fetch(`/api/images?${params}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
         const data = await res.json();
-        setImages(data.images || []);
+        if (append) {
+          setImages(prev => [...prev, ...(data.images || [])]);
+        } else {
+          setImages(data.images || []);
+        }
+        setCursor(data.cursor || null);
+        setHasMore(data.hasMore ?? false);
       }
     } catch {
       // Ignore errors
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
-  }, [folder]);
+  }, [folder, cursor, hasMore, loadingMore]);
 
+  // Initial fetch and refresh
   useEffect(() => {
-    fetchImages();
-  }, [fetchImages, refreshKey]);
+    fetchImages(false);
+  }, [folder, refreshKey]);
 
+  // Intersection Observer for infinite scroll
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !loading && !loadingMore) {
+          fetchImages(true);
+        }
+      },
+      { rootMargin: '400px' }
+    );
+
+    if (loadMoreRef.current) {
+      observer.observe(loadMoreRef.current);
+    }
+
+    return () => observer.disconnect();
+  }, [hasMore, loading, loadingMore, fetchImages]);
+
+  // Tag menu click outside handler
   useEffect(() => {
     if (!tagMenu) return;
     const handleClick = (event: globalThis.MouseEvent) => {
@@ -124,8 +179,26 @@ export function ImageGrid({ folder, domain, refreshKey, onRefresh, activeTag, sh
     };
   }, [tagMenu]);
 
+  // Calculate columns for grid view
+  useEffect(() => {
+    const updateColumns = () => {
+      if (scrollRef.current) {
+        const width = scrollRef.current.offsetWidth;
+        setColumns(Math.max(2, Math.floor(width / 192)));
+      }
+    };
+    updateColumns();
+    window.addEventListener('resize', updateColumns);
+    return () => window.removeEventListener('resize', updateColumns);
+  }, []);
+
   const getImageUrl = (key: string) =>
     useFileProxy ? `/api/file?key=${encodeURIComponent(key)}` : `${DOMAINS[domain]}/${key}`;
+
+  const getThumbnailUrl = (key: string) => {
+    const thumbKey = `.thumbs/${key}`;
+    return useFileProxy ? `/api/file?key=${encodeURIComponent(thumbKey)}` : `${DOMAINS[domain]}/${thumbKey}`;
+  };
 
   const getCopyUrl = (key: string) => `${DOMAINS[domain]}/${key}`;
 
@@ -353,23 +426,19 @@ export function ImageGrid({ folder, domain, refreshKey, onRefresh, activeTag, sh
   const processedImages = useMemo(() => {
     let filtered = images;
 
-    // Filter by tag
     if (activeTag) {
       filtered = filtered.filter(img => getTags(img.key).includes(activeTag));
     }
 
-    // Filter by favorites
     if (showFavorites) {
       filtered = filtered.filter(img => isFavorite(img.key));
     }
 
-    // Search by filename
     if (filters.query.trim()) {
       const query = filters.query.toLowerCase();
       filtered = filtered.filter(img => (img.key.split('/').pop() || '').toLowerCase().includes(query));
     }
 
-    // Filter by type
     if (filters.type) {
       const type = filters.type;
       filtered = filtered.filter(img => {
@@ -382,7 +451,6 @@ export function ImageGrid({ folder, domain, refreshKey, onRefresh, activeTag, sh
       });
     }
 
-    // Filter by size (MB)
     const minMb = filters.sizeMin ? Number(filters.sizeMin) : null;
     const maxMb = filters.sizeMax ? Number(filters.sizeMax) : null;
     if (Number.isFinite(minMb) && minMb !== null) {
@@ -392,7 +460,6 @@ export function ImageGrid({ folder, domain, refreshKey, onRefresh, activeTag, sh
       filtered = filtered.filter(img => img.size <= maxMb * 1024 * 1024);
     }
 
-    // Filter by date range
     const from = filters.dateFrom ? new Date(`${filters.dateFrom}T00:00:00`).getTime() : null;
     const to = filters.dateTo ? new Date(`${filters.dateTo}T23:59:59`).getTime() : null;
     if (from) {
@@ -402,7 +469,6 @@ export function ImageGrid({ folder, domain, refreshKey, onRefresh, activeTag, sh
       filtered = filtered.filter(img => new Date(img.uploaded).getTime() <= to);
     }
 
-    // Sort: favorites first, then by upload date
     return [...filtered].sort((a, b) => {
       const aFav = isFavorite(a.key) ? 0 : 1;
       const bFav = isFavorite(b.key) ? 0 : 1;
@@ -425,7 +491,6 @@ export function ImageGrid({ folder, domain, refreshKey, onRefresh, activeTag, sh
       } else if (groupBy === 'date') {
         groupKey = getDateGroup(img.uploaded);
       } else {
-        // tag
         const tags = getTags(img.key);
         if (tags.length === 0) {
           const list = map.get('Untagged') || [];
@@ -447,7 +512,6 @@ export function ImageGrid({ folder, domain, refreshKey, onRefresh, activeTag, sh
       map.set(groupKey, list);
     }
 
-    // Sort groups
     const entries = Array.from(map.entries());
     if (groupBy === 'date') {
       entries.sort((a, b) => (DATE_ORDER[a[0]] ?? 99) - (DATE_ORDER[b[0]] ?? 99));
@@ -458,6 +522,39 @@ export function ImageGrid({ folder, domain, refreshKey, onRefresh, activeTag, sh
     return entries.map(([label, images]) => ({ label, images }));
   }, [processedImages, groupBy, getTags]);
 
+  // Build flattened virtual items
+  const virtualItems = useMemo((): VirtualItem[] => {
+    const items: VirtualItem[] = [];
+    for (const group of groups) {
+      if (group.label) {
+        items.push({ type: 'header', label: group.label, count: group.images.length });
+      }
+      if (viewMode === 'grid') {
+        for (let i = 0; i < group.images.length; i += columns) {
+          items.push({ type: 'row', images: group.images.slice(i, i + columns) });
+        }
+      } else {
+        for (const img of group.images) {
+          items.push({ type: 'row', images: [img] });
+        }
+      }
+    }
+    return items;
+  }, [groups, viewMode, columns]);
+
+  // Virtual list
+  const virtualizer = useVirtualizer({
+    count: virtualItems.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: (index) => {
+      const item = virtualItems[index];
+      if (item.type === 'header') return GROUP_HEADER_HEIGHT;
+      return viewMode === 'grid' ? CARD_HEIGHT : LIST_ITEM_HEIGHT;
+    },
+    overscan: 5,
+  });
+
+  // Clean up selection when images change
   useEffect(() => {
     if (selectedKeys.size === 0) return;
     const visibleKeys = new Set(processedImages.map(img => img.key));
@@ -493,10 +590,12 @@ export function ImageGrid({ folder, domain, refreshKey, onRefresh, activeTag, sh
             {selected ? <CheckSquare size={14} /> : <Square size={14} />}
           </button>
           <img
-            src={getImageUrl(img.key)}
+            src={getThumbnailUrl(img.key)}
             alt={img.key}
             className={styles.image}
             loading="lazy"
+            decoding="async"
+            onError={(e) => { (e.target as HTMLImageElement).src = getImageUrl(img.key); }}
           />
           <button
             className={styles.moreBtn}
@@ -549,7 +648,13 @@ export function ImageGrid({ folder, domain, refreshKey, onRefresh, activeTag, sh
           {selected ? <CheckSquare size={14} /> : <Square size={14} />}
         </button>
         <div className={styles.listThumb}>
-          <img src={getImageUrl(img.key)} alt={img.key} loading="lazy" />
+          <img
+            src={getThumbnailUrl(img.key)}
+            alt={img.key}
+            loading="lazy"
+            decoding="async"
+            onError={(e) => { (e.target as HTMLImageElement).src = getImageUrl(img.key); }}
+          />
         </div>
         <div className={styles.listInfo}>
           <div className={styles.listName}>
@@ -596,6 +701,7 @@ export function ImageGrid({ folder, domain, refreshKey, onRefresh, activeTag, sh
       <div className={styles.header}>
         <span className={styles.count}>
           {processedImages.length} image{processedImages.length !== 1 ? 's' : ''}
+          {hasMore && ' +'}
         </span>
         <div className={styles.toolbar}>
           <div className={styles.toolbarGroup}>
@@ -678,26 +784,73 @@ export function ImageGrid({ folder, domain, refreshKey, onRefresh, activeTag, sh
         </div>
       )}
 
-      <div className={styles.scrollArea}>
-        {groups.map(group => (
-          <div key={group.label || '__all__'}>
-            {group.label && (
-              <div className={styles.groupHeader}>
-                <span>{group.label}</span>
-                <span className={styles.groupCount}>{group.images.length}</span>
+      <div ref={scrollRef} className={styles.scrollArea}>
+        <div
+          style={{
+            height: `${virtualizer.getTotalSize()}px`,
+            width: '100%',
+            position: 'relative',
+          }}
+        >
+          {virtualizer.getVirtualItems().map((virtualRow) => {
+            const item = virtualItems[virtualRow.index];
+
+            if (item.type === 'header') {
+              return (
+                <div
+                  key={virtualRow.key}
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: `${virtualRow.size}px`,
+                    transform: `translateY(${virtualRow.start}px)`,
+                  }}
+                >
+                  <div className={styles.groupHeader}>
+                    <span>{item.label}</span>
+                    <span className={styles.groupCount}>{item.count}</span>
+                  </div>
+                </div>
+              );
+            }
+
+            return (
+              <div
+                key={virtualRow.key}
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  height: `${virtualRow.size}px`,
+                  transform: `translateY(${virtualRow.start}px)`,
+                }}
+              >
+                {viewMode === 'grid' ? (
+                  <div className={styles.grid}>
+                    {item.images.map(renderCard)}
+                  </div>
+                ) : (
+                  <div className={styles.list}>
+                    {item.images.map(renderListItem)}
+                  </div>
+                )}
               </div>
-            )}
-            {viewMode === 'grid' ? (
-              <div className={styles.grid}>
-                {group.images.map(renderCard)}
-              </div>
-            ) : (
-              <div className={styles.list}>
-                {group.images.map(renderListItem)}
-              </div>
-            )}
-          </div>
-        ))}
+            );
+          })}
+        </div>
+
+        {/* Load more trigger */}
+        <div ref={loadMoreRef} className={styles.loadMore}>
+          {loadingMore && (
+            <div className={styles.loadingIndicator}>
+              <Loader2 size={20} className={styles.spinning} />
+              <span>Loading more...</span>
+            </div>
+          )}
+        </div>
       </div>
 
       {contextMenu && (

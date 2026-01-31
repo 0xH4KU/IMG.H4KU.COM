@@ -12,6 +12,7 @@
     "deploy": "wrangler pages deploy dist"
   },
   "dependencies": {
+    "@tanstack/react-virtual": "^3.13.18",
     "fflate": "^0.8.2",
     "lucide-react": "^0.563.0",
     "react": "^19.2.3",

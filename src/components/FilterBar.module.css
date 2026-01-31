@@ -114,7 +114,7 @@
 
 .panel {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: 12px;
 }
 
@@ -124,6 +124,7 @@
   gap: 6px;
   font-size: 0.75rem;
   color: var(--color-text-muted);
+  min-width: 0;
 }
 
 .field select,
@@ -144,9 +145,13 @@
 
 .rangeInputs {
   display: grid;
-  grid-template-columns: 1fr auto 1fr;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
   gap: 6px;
+}
+
+.rangeInputs input {
+  min-width: 0;
 }
 
 .rangeDivider {
@@ -157,5 +162,19 @@
 @media (max-width: 768px) {
   .container {
     padding: 10px;
+  }
+}
+
+@media (max-width: 680px) {
+  .panel {
+    grid-template-columns: 1fr;
+  }
+
+  .rangeInputs {
+    grid-template-columns: 1fr;
+  }
+
+  .rangeDivider {
+    display: none;
   }
 }

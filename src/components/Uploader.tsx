@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, DragEvent, ChangeEvent, useEffect, KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { Upload, X, Check, AlertCircle, Pause, Play, RotateCcw } from 'lucide-react';
 import { getAuthToken } from '../contexts/AuthContext';
+import { generateThumbnail } from '../utils/thumbnail';
 import styles from './Uploader.module.css';
 
 interface UploaderProps {
@@ -59,6 +60,9 @@ export function Uploader({ folder, onUploadComplete }: UploaderProps) {
     formData.append('folder', uf.targetFolder);
 
     try {
+      // Generate thumbnail in parallel with upload preparation
+      const thumbnailPromise = generateThumbnail(uf.file);
+
       const res = await fetch('/api/upload', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
@@ -66,6 +70,23 @@ export function Uploader({ folder, onUploadComplete }: UploaderProps) {
       });
 
       if (res.ok) {
+        const result = await res.json();
+
+        // Upload thumbnail if generated
+        const thumbnail = await thumbnailPromise;
+        if (thumbnail) {
+          const thumbKey = `.thumbs/${result.key}`;
+          const thumbFormData = new FormData();
+          thumbFormData.append('file', thumbnail, 'thumb.webp');
+          thumbFormData.append('key', thumbKey);
+
+          fetch('/api/upload', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token}` },
+            body: thumbFormData,
+          }).catch(() => { /* Thumbnail upload failure is non-critical */ });
+        }
+
         setFiles(prev =>
           prev.map(f =>
             f.id === uf.id ? { ...f, status: 'success', progress: 100 } : f

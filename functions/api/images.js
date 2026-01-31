@@ -27,21 +27,32 @@ export async function onRequestGet(context) {
 
   const url = new URL(request.url);
   const folder = url.searchParams.get('folder') || '';
+  const cursor = url.searchParams.get('cursor') || undefined;
+  const limit = Math.min(Math.max(Number(url.searchParams.get('limit')) || 50, 1), 100);
   const prefix = folder ? `${folder}/` : '';
   const includeTrash = folder.toLowerCase() === 'trash';
 
   try {
-    const listed = await env.R2.list({ prefix, limit: 1000 });
-    // Filter out .config/ prefix objects
-    const images = listed.objects
+    const listed = await env.R2.list({ prefix, cursor, limit: limit + 20 });
+
+    // Filter out .config/, .thumbs/, and trash/ (unless viewing trash)
+    const filtered = listed.objects
       .filter(obj => !obj.key.startsWith('.config/'))
-      .filter(obj => includeTrash || !obj.key.startsWith('trash/'))
-      .map(obj => ({
-        key: obj.key,
-        size: obj.size,
-        uploaded: obj.uploaded.toISOString(),
-      }));
-    return Response.json({ images });
+      .filter(obj => !obj.key.startsWith('.thumbs/'))
+      .filter(obj => includeTrash || !obj.key.startsWith('trash/'));
+
+    // Take only the requested limit
+    const images = filtered.slice(0, limit).map(obj => ({
+      key: obj.key,
+      size: obj.size,
+      uploaded: obj.uploaded.toISOString(),
+    }));
+
+    // Determine if there are more results
+    const hasMore = filtered.length > limit || listed.truncated;
+    const nextCursor = hasMore ? listed.cursor : null;
+
+    return Response.json({ images, cursor: nextCursor, hasMore });
   } catch (err) {
     await logError(env, {
       route: '/api/images',

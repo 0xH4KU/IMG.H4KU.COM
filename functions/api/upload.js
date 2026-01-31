@@ -35,17 +35,37 @@ export async function onRequestPost(context) {
     const formData = await request.formData();
     const file = formData.get('file');
     const folder = formData.get('folder') || '';
+    const customKey = formData.get('key') || '';
 
     if (!file) return new Response('No file provided', { status: 400 });
-    if (!ALLOWED_TYPES.includes(file.type)) return new Response(`Invalid file type: ${file.type}`, { status: 400 });
+
+    // Thumbnails have relaxed type check (allow webp from canvas)
+    const isThumbnail = customKey && customKey.startsWith('.thumbs/');
+    if (!isThumbnail && !ALLOWED_TYPES.includes(file.type)) {
+      return new Response(`Invalid file type: ${file.type}`, { status: 400 });
+    }
     if (file.size > MAX_SIZE) return new Response('File too large (max 50MB)', { status: 400 });
 
-    const timestamp = Date.now().toString(36);
-    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-    const key = folder ? `${folder}/${timestamp}-${safeName}` : `${timestamp}-${safeName}`;
+    let key;
+    if (isThumbnail) {
+      key = customKey;
+    } else {
+      const timestamp = Date.now().toString(36);
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      key = folder ? `${folder}/${timestamp}-${safeName}` : `${timestamp}-${safeName}`;
+    }
 
     const uploadedAt = new Date().toISOString();
     const buffer = await file.arrayBuffer();
+
+    // Skip hash for thumbnails
+    if (isThumbnail) {
+      await env.R2.put(key, buffer, {
+        httpMetadata: { contentType: file.type || 'image/webp' },
+      });
+      return Response.json({ key, size: file.size, type: file.type });
+    }
+
     const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
     const hash = bytesToHex(new Uint8Array(hashBuffer));
 

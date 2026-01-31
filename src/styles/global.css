@@ -75,7 +75,7 @@ body {
   font-size: var(--font-size-base);
   background: var(--color-background);
   color: var(--color-text);
-  overflow: auto;
+  overflow: hidden;
   overscroll-behavior: none;
 }
 
