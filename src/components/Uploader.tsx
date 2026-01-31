@@ -22,11 +22,15 @@ interface UploadFile {
 const MAX_CONCURRENT = 3;
 
 export function Uploader({ folder, onUploadComplete }: UploaderProps) {
+  const COLLAPSE_KEY = 'img_uploader_collapsed';
   const [isDragging, setIsDragging] = useState(false);
   const [files, setFiles] = useState<UploadFile[]>([]);
   const [paused, setPaused] = useState(false);
   const [activeCount, setActiveCount] = useState(0);
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.localStorage.getItem(COLLAPSE_KEY) === 'true';
+  });
   const inputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
   const folderRef = useRef(folder);
@@ -204,6 +208,11 @@ export function Uploader({ folder, onUploadComplete }: UploaderProps) {
         : successCount > 0
           ? `${successCount} completed${errorSuffix}`
           : `Queue idle${errorSuffix}`;
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(COLLAPSE_KEY, String(collapsed));
+  }, [collapsed]);
 
   return (
     <div className={styles.container}>
