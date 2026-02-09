@@ -32,7 +32,7 @@ interface ImageGridProps {
 }
 
 const CARD_HEIGHT = 260;
-const LIST_ITEM_HEIGHT = 64;
+const LIST_ITEM_HEIGHT = 70;  // 48px thumb + 16px padding + 2px border + 4px gap
 const GROUP_HEADER_HEIGHT = 48;
 
 type VirtualItem =
