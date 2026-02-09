@@ -2,8 +2,9 @@ import { getHashMeta, saveHashMeta } from '../../_utils/meta';
 import { moveToTrash, restoreFromTrash } from '../../_utils/trash';
 import { logError } from '../../_utils/log';
 import { authenticateRequest } from '../../_utils/auth';
-import { cleanKey } from '../../_utils/keys';
+import { cleanKey, ensureSafeObjectKey } from '../../_utils/keys';
 import { getImageMeta, saveImageMeta } from '../../_utils/meta';
+import { createOperationTracker } from '../../_utils/operation';
 
 export async function onRequestPost(context) {
   const { request, env } = context;
@@ -11,27 +12,46 @@ export async function onRequestPost(context) {
     return new Response('Unauthorized', { status: 401 });
   }
 
+  const tracker = createOperationTracker();
+
   try {
     const body = await request.json();
-    const keys = Array.isArray(body.keys)
+    const rawKeys = Array.isArray(body.keys)
       ? body.keys.map(cleanKey).filter(Boolean)
       : [];
+
+    const keys = [];
+    for (const key of rawKeys) {
+      const validity = ensureSafeObjectKey(key);
+      if (validity.ok) {
+        keys.push(validity.key);
+      } else {
+        tracker.addSkipped(key, validity.reason || 'Invalid key');
+      }
+    }
     const action = body.action === 'restore' ? 'restore' : 'delete';
-    if (keys.length === 0) {
+    if (keys.length === 0 && tracker.getResult().skipped === 0) {
       return new Response('Missing keys', { status: 400 });
     }
 
     const results = [];
-    let missing = 0;
     for (const key of keys) {
-      const result = action === 'restore'
-        ? await restoreFromTrash(env, key)
-        : await moveToTrash(env, key);
-      if (result.action === 'missing' || result.action === 'not_trash') {
-        missing += 1;
-        continue;
+      try {
+        const result = action === 'restore'
+          ? await restoreFromTrash(env, key)
+          : await moveToTrash(env, key);
+
+        if (result.action === 'missing') {
+          tracker.addSkipped(key, 'Object not found');
+        } else if (result.action === 'not_trash') {
+          tracker.addSkipped(key, 'Not in trash');
+        } else {
+          tracker.addSuccess(key, { action: result.action, to: result.to });
+          results.push(result);
+        }
+      } catch (err) {
+        tracker.addFailed(key, err instanceof Error ? err.message : String(err));
       }
-      results.push(result);
     }
 
     const meta = await getImageMeta(env);
@@ -68,17 +88,28 @@ export async function onRequestPost(context) {
       await logError(env, {
         route: '/api/images/batch',
         method: 'POST',
-        message: 'Failed to delete hash meta in batch',
+        message: 'Failed to update hash meta in batch',
         detail: err,
+        operationId: tracker.id,
       });
     }
 
+    const opResult = tracker.getResult();
     return Response.json({
-      ok: true,
+      ok: opResult.ok,
+      operationId: opResult.operationId,
+      total: opResult.total,
+      succeeded: opResult.succeeded,
+      failed: opResult.failed,
+      skipped: opResult.skipped,
+      retryable: opResult.retryable,
+      durationMs: opResult.durationMs,
+      details: opResult.details,
+      // Legacy fields for backward compatibility
       trashed: results.filter(r => r.action === 'moved').length,
       restored: results.filter(r => r.action === 'restored').length,
       deleted: results.filter(r => r.action === 'deleted').length,
-      missing,
+      missing: opResult.skipped,
       metaRemoved: removed,
       metaMoved: moved,
     });
@@ -86,9 +117,22 @@ export async function onRequestPost(context) {
     await logError(env, {
       route: '/api/images/batch',
       method: 'POST',
-      message: 'Failed to delete images in batch',
+      message: 'Failed to process batch operation',
       detail: err,
+      operationId: tracker.id,
     });
-    return new Response(`Failed to delete images: ${err}`, { status: 500 });
+    const opResult = tracker.getResult();
+    return Response.json({
+      ok: false,
+      operationId: opResult.operationId,
+      error: err instanceof Error ? err.message : String(err),
+      total: opResult.total,
+      succeeded: opResult.succeeded,
+      failed: opResult.failed,
+      skipped: opResult.skipped,
+      retryable: opResult.retryable,
+      durationMs: opResult.durationMs,
+      details: opResult.details,
+    }, { status: 500 });
   }
 }

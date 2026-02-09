@@ -2,7 +2,7 @@ import { getHashMeta, saveHashMeta } from '../_utils/meta';
 import { moveToTrash, restoreFromTrash } from '../_utils/trash';
 import { logError } from '../_utils/log';
 import { authenticateRequest } from '../_utils/auth';
-import { cleanKey, isHiddenObjectKey, isTrashKey } from '../_utils/keys';
+import { cleanKey, isHiddenObjectKey, isTrashKey, ensureSafeObjectKey } from '../_utils/keys';
 
 const META_KEY = '.config/image-meta.json';
 
@@ -61,6 +61,11 @@ export async function onRequestDelete(context) {
   const url = new URL(request.url);
   const key = cleanKey(url.searchParams.get('key'));
   if (!key) return new Response('Missing key', { status: 400 });
+
+  const keyValidity = ensureSafeObjectKey(key);
+  if (!keyValidity.ok) {
+    return new Response(keyValidity.reason, { status: 400 });
+  }
 
   try {
     const result = await moveToTrash(env, key);
@@ -141,6 +146,11 @@ export async function onRequestPost(context) {
     key = cleanKey(url.searchParams.get('key'));
   }
   if (!key) return new Response('Missing key', { status: 400 });
+
+  const keyValidity = ensureSafeObjectKey(key);
+  if (!keyValidity.ok) {
+    return new Response(keyValidity.reason, { status: 400 });
+  }
 
   try {
     const result = await restoreFromTrash(env, key);

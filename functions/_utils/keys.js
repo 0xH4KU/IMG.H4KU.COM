@@ -54,6 +54,7 @@ export function ensureSafeObjectKey(value) {
   if (!key) return { ok: false, reason: 'Missing key' };
   if (key.includes('..')) return { ok: false, reason: 'Invalid key path' };
   if (isReservedKey(key)) return { ok: false, reason: 'Invalid key path' };
+  if (isHiddenObjectKey(key)) return { ok: false, reason: 'Invalid key path' };
   return { ok: true, key };
 }
 

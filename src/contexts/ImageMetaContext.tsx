@@ -1,5 +1,7 @@
 import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
 import { apiRequest } from '../utils/api';
+import { getErrorMessage } from '../utils/errors';
+import { useApiAction } from '../hooks/useApiAction';
 
 export type TagColor = 'red' | 'orange' | 'yellow' | 'green' | 'blue' | 'purple';
 
@@ -19,6 +21,7 @@ interface MetaData {
 interface ImageMetaContextType {
   meta: Record<string, ImageMeta>;
   loading: boolean;
+  error: string;
   refreshMeta: () => Promise<void>;
   toggleTag: (key: string, tag: TagColor) => Promise<void>;
   toggleFavorite: (key: string) => Promise<void>;
@@ -33,18 +36,21 @@ const ImageMetaContext = createContext<ImageMetaContextType | null>(null);
 export function ImageMetaProvider({ children }: { children: ReactNode }) {
   const [meta, setMeta] = useState<Record<string, ImageMeta>>({});
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const { run } = useApiAction();
 
   const refreshMeta = useCallback(async () => {
     setLoading(true);
+    setError('');
     try {
-      const data = await apiRequest<MetaData>('/api/metadata');
+      const data = await run(() => apiRequest<MetaData>('/api/metadata'));
       setMeta(data.images || {});
-    } catch {
-      // Ignore errors
+    } catch (nextError) {
+      setError(getErrorMessage(nextError, 'Failed to load metadata'));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [run]);
 
   useEffect(() => {
     refreshMeta();
@@ -65,15 +71,17 @@ export function ImageMetaProvider({ children }: { children: ReactNode }) {
     });
 
     try {
-      await apiRequest('/api/metadata', {
+      await run(() => apiRequest('/api/metadata', {
         method: 'PUT',
         body: { key, ...updates },
-      });
-    } catch {
+      }));
+      setError('');
+    } catch (nextError) {
+      setError(getErrorMessage(nextError, 'Failed to update metadata'));
       // Rollback on failure
       setMeta(prev => ({ ...prev, [key]: current }));
     }
-  }, [meta]);
+  }, [meta, run]);
 
   const toggleTag = useCallback(async (key: string, tag: TagColor) => {
     const current = meta[key]?.tags || [];
@@ -109,6 +117,7 @@ export function ImageMetaProvider({ children }: { children: ReactNode }) {
       value={{
         meta,
         loading,
+        error,
         refreshMeta,
         toggleTag,
         toggleFavorite,

@@ -140,6 +140,7 @@ DOMAINS = "img.h4ku.com,img.lum.bio"
 | `R2_MAX_COUNT` | Var | No | Optional max object count for usage percent |
 | `R2_WARN_COUNT` | Var | No | Warn threshold for object count |
 | `R2_ALERT_COUNT` | Var | No | Alert threshold for object count |
+| `LEGACY_TOKEN_UNTIL` | Var | No | ISO datetime cutoff for legacy token verification |
 
 ## Updating Deployment
 
@@ -167,6 +168,7 @@ npx wrangler pages deploy dist --project-name=img-h4ku
 - Verify `ADMIN_PASSWORD` secret is set in Dashboard
 - Check token hasn't expired (24-hour validity)
 - Try logging out and back in
+- If old tokens stop working, check `LEGACY_TOKEN_UNTIL` and whether cutoff time has passed
 
 ### Upload fails
 

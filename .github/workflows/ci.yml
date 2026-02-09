@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npm run type-check
+
+      - name: Lint
+        run: npm run lint
+        continue-on-error: true
+
+      - name: Build
+        run: npm run build
+
+      - name: Test
+        run: npm run test 2>&1 | tee test-output.txt
+
+      - name: Generate Summary
+        if: always()
+        run: |
+          echo "## CI Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          echo "### Test Results" >> $GITHUB_STEP_SUMMARY
+          if [ -f test-output.txt ]; then
+            PASS=$(grep -oP '(?<=pass )\d+' test-output.txt || echo "0")
+            FAIL=$(grep -oP '(?<=fail )\d+' test-output.txt || echo "0")
+            echo "- **Pass:** $PASS" >> $GITHUB_STEP_SUMMARY
+            echo "- **Fail:** $FAIL" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- No test output found" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          echo "### Build" >> $GITHUB_STEP_SUMMARY
+          if [ -d dist ]; then
+            echo "- Build succeeded" >> $GITHUB_STEP_SUMMARY
+            SIZE=$(du -sh dist | cut -f1)
+            echo "- Output size: $SIZE" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- Build failed or no output" >> $GITHUB_STEP_SUMMARY
+          fi

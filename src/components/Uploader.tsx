@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, DragEvent, ChangeEvent, useEffect, Keybo
 import { Upload, X, Check, AlertCircle, Pause, Play, RotateCcw, ChevronUp, ChevronDown } from 'lucide-react';
 import { getAuthToken } from '../contexts/AuthContext';
 import { generateThumbnail } from '../utils/thumbnail';
-import { normalizeFolderPath } from '../utils/key';
+import { normalizeFolderPath } from '../utils/keys';
 import { getStoredValue, setStoredValue } from '../utils/storage';
 import styles from './Uploader.module.css';
 

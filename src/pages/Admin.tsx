@@ -14,6 +14,9 @@ import { ShareManagerModal } from '../components/ShareManagerModal';
 import { ImageFilters } from '../types';
 import { apiRequest } from '../utils/api';
 import { getStoredValue, setStoredValue } from '../utils/storage';
+import { useTransientMessage } from '../hooks/useTransientMessage';
+import { getErrorMessage } from '../utils/errors';
+import { useApiAction } from '../hooks/useApiAction';
 import styles from './Admin.module.css';
 
 export function Admin() {
@@ -61,6 +64,8 @@ export function Admin() {
   const [bulkKeys, setBulkKeys] = useState<string[]>([]);
   const [toolsOpen, setToolsOpen] = useState(false);
   const [shareManagerOpen, setShareManagerOpen] = useState(false);
+  const { message: actionError, show: showActionError } = useTransientMessage(2400);
+  const { run } = useApiAction();
   const [filters, setFilters] = useState<ImageFilters>({
     query: '',
     type: '',
@@ -163,15 +168,15 @@ export function Admin() {
   useEffect(() => {
     const runAutoCleanup = async () => {
       try {
-        await apiRequest('/api/maintenance/temp?auto=1&days=30', {
+        await run(() => apiRequest('/api/maintenance/temp?auto=1&days=30', {
           method: 'POST',
-        });
-      } catch {
-        // Ignore auto cleanup errors
+        }));
+      } catch (error) {
+        showActionError(getErrorMessage(error, 'Auto cleanup failed'));
       }
     };
     runAutoCleanup();
-  }, []);
+  }, [run, showActionError]);
 
   return (
     <ImageMetaProvider>
@@ -230,6 +235,9 @@ export function Admin() {
           )}
 
           <div className={styles.content}>
+            {actionError && (
+              <div style={{ marginBottom: 8, color: 'var(--danger)' }}>{actionError}</div>
+            )}
             <Uploader
               folder={currentFolder}
               onUploadComplete={handleUploadComplete}

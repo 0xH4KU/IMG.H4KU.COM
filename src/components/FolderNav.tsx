@@ -1,8 +1,13 @@
 import { useState, useEffect, useRef, useLayoutEffect, MouseEvent as ReactMouseEvent } from 'react';
 import { Folder, FolderPlus, Home, Star, MoreHorizontal, Pencil, Merge, Trash2, Share2, Clock } from 'lucide-react';
 import { useImageMeta, TAG_COLORS, TagColor } from '../contexts/ImageMetaContext';
-import { apiRequest, ApiError } from '../utils/api';
+import { ConfirmModal } from './ConfirmModal';
+import { TextPromptModal } from './TextPromptModal';
+import { apiRequest } from '../utils/api';
 import { useTransientMessage } from '../hooks/useTransientMessage';
+import { useConfirmDialog, usePromptDialog } from '../hooks/useDialogs';
+import { getErrorMessage } from '../utils/errors';
+import { useApiAction } from '../hooks/useApiAction';
 import styles from './FolderNav.module.css';
 
 interface FoldersResponse {
@@ -41,6 +46,9 @@ export function FolderNav({
   const menuRef = useRef<HTMLDivElement>(null);
   const navRef = useRef<HTMLElement>(null);
   const { message: actionError, show: showActionError } = useTransientMessage(2400);
+  const { run } = useApiAction();
+  const { confirm, confirmProps } = useConfirmDialog();
+  const { prompt, promptProps } = usePromptDialog();
 
   const { getFavoriteCount, getTagCount } = useImageMeta();
 
@@ -50,12 +58,12 @@ export function FolderNav({
 
   const fetchFolders = async () => {
     try {
-      const data = await apiRequest<FoldersResponse>('/api/folders?stats=1');
+      const data = await run(() => apiRequest<FoldersResponse>('/api/folders?stats=1'));
       setFolders((data.folders || []) as string[]);
       setFolderStats(data.stats || {});
       setTotalStats(data.total || null);
-    } catch {
-      // Ignore errors
+    } catch (error) {
+      showActionError(getErrorMessage(error, 'Failed to load folders'));
     }
   };
 
@@ -65,14 +73,14 @@ export function FolderNav({
     const folderName = trimmed.replace(/[^a-zA-Z0-9-_]/g, '-');
     if (!folders.includes(folderName)) {
       try {
-        await apiRequest('/api/folders', {
+        await run(() => apiRequest('/api/folders', {
           method: 'POST',
           body: { name: folderName },
-        });
+        }));
         await fetchFolders();
         onFolderChange(folderName);
       } catch (error) {
-        showActionError(error instanceof ApiError ? error.message : 'Failed to create folder');
+        showActionError(getErrorMessage(error, 'Failed to create folder'));
       }
     }
     setNewFolder('');
@@ -172,49 +180,50 @@ export function FolderNav({
   };
 
   const renameFolder = async (folder: string) => {
-    const next = prompt('Rename folder to:', folder);
+    const next = await prompt('New folder name:', folder, { title: 'Rename Folder' });
     if (!next) return;
     const nextName = next.trim().replace(/[^a-zA-Z0-9-_]/g, '-');
     if (!nextName || nextName === folder) return;
     try {
-      await apiRequest('/api/folders', {
+      await run(() => apiRequest('/api/folders', {
         method: 'PUT',
         body: { from: folder, to: nextName, mode: 'rename' },
-      });
+      }));
       await fetchFolders();
       if (currentFolder === folder) onFolderChange(nextName);
     } catch (error) {
-      alert(error instanceof ApiError ? error.message : 'Failed to rename folder');
+      showActionError(getErrorMessage(error, 'Failed to rename folder'));
     }
   };
 
   const mergeFolder = async (folder: string) => {
-    const target = prompt('Merge into folder:', '');
+    const target = await prompt('Target folder name:', '', { title: 'Merge Folder' });
     if (!target) return;
     const targetName = target.trim().replace(/[^a-zA-Z0-9-_]/g, '-');
     if (!targetName || targetName === folder) return;
     try {
-      await apiRequest('/api/folders', {
+      await run(() => apiRequest('/api/folders', {
         method: 'PUT',
         body: { from: folder, to: targetName, mode: 'merge' },
-      });
+      }));
       await fetchFolders();
       if (currentFolder === folder) onFolderChange(targetName);
     } catch (error) {
-      alert(error instanceof ApiError ? error.message : 'Failed to merge folder');
+      showActionError(getErrorMessage(error, 'Failed to merge folder'));
     }
   };
 
   const deleteFolder = async (folder: string) => {
-    if (!confirm(`Delete folder "${folder}" and all images inside?`)) return;
+    const confirmed = await confirm(`Delete folder "${folder}" and all images inside?`, { title: 'Delete Folder', danger: true });
+    if (!confirmed) return;
     try {
-      await apiRequest(`/api/folders?name=${encodeURIComponent(folder)}`, {
+      await run(() => apiRequest(`/api/folders?name=${encodeURIComponent(folder)}`, {
         method: 'DELETE',
-      });
+      }));
       await fetchFolders();
       if (currentFolder === folder) onFolderChange('');
     } catch (error) {
-      alert(error instanceof ApiError ? error.message : 'Failed to delete folder');
+      showActionError(getErrorMessage(error, 'Failed to delete folder'));
     }
   };
 
@@ -413,6 +422,9 @@ export function FolderNav({
       {actionError && (
         <div className={styles.actionError}>{actionError}</div>
       )}
+
+      <ConfirmModal {...confirmProps} />
+      <TextPromptModal {...promptProps} />
     </nav>
   );
 }

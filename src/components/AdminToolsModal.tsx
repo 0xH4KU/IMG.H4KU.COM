@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { X, RefreshCw, Download, Trash2 } from 'lucide-react';
-import { apiRequest, ApiError } from '../utils/api';
+import { apiRequest } from '../utils/api';
 import { formatBytes } from '../utils/format';
+import { getErrorMessage } from '../utils/errors';
+import { useApiAction } from '../hooks/useApiAction';
 import styles from './AdminToolsModal.module.css';
 
 interface AdminToolsModalProps {
@@ -39,14 +41,15 @@ export function AdminToolsModal({ open, onClose }: AdminToolsModalProps) {
   const [result, setResult] = useState('');
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [logLoading, setLogLoading] = useState(false);
+  const { run } = useApiAction();
 
   const fetchUsage = async () => {
     setUsageLoading(true);
     try {
-      const data = await apiRequest<UsageResponse>('/api/monitoring/r2');
+      const data = await run(() => apiRequest<UsageResponse>('/api/monitoring/r2'));
       setUsage(data);
-    } catch {
-      // Ignore
+    } catch (error) {
+      setResult(getErrorMessage(error, 'Failed to load storage usage'));
     } finally {
       setUsageLoading(false);
     }
@@ -55,10 +58,10 @@ export function AdminToolsModal({ open, onClose }: AdminToolsModalProps) {
   const fetchLogs = async () => {
     setLogLoading(true);
     try {
-      const data = await apiRequest<{ logs?: LogEntry[] }>('/api/logs?limit=50');
+      const data = await run(() => apiRequest<{ logs?: LogEntry[] }>('/api/logs?limit=50'));
       setLogs(Array.isArray(data.logs) ? data.logs : []);
-    } catch {
-      // Ignore
+    } catch (error) {
+      setResult(getErrorMessage(error, 'Failed to load error logs'));
     } finally {
       setLogLoading(false);
     }
@@ -85,50 +88,50 @@ export function AdminToolsModal({ open, onClose }: AdminToolsModalProps) {
 
   const runTempCleanup = () => runAction('temp', async () => {
     try {
-      const data = await apiRequest('/api/maintenance/temp?days=30', {
+      const data = await run(() => apiRequest('/api/maintenance/temp?days=30', {
         method: 'POST',
-      });
+      }));
       setResult(JSON.stringify(data, null, 2));
       fetchUsage();
     } catch (error) {
-      setResult(error instanceof ApiError ? error.message : 'Failed to run temp cleanup');
+      setResult(getErrorMessage(error, 'Failed to run temp cleanup'));
     }
   });
 
   const runOrphanCleanup = () => runAction('orphans', async () => {
     try {
-      const data = await apiRequest('/api/maintenance/orphans', {
+      const data = await run(() => apiRequest('/api/maintenance/orphans', {
         method: 'POST',
-      });
+      }));
       setResult(JSON.stringify(data, null, 2));
     } catch (error) {
-      setResult(error instanceof ApiError ? error.message : 'Failed to cleanup orphans');
+      setResult(getErrorMessage(error, 'Failed to cleanup orphans'));
     }
   });
 
   const runBrokenLinks = () => runAction('broken', async () => {
     try {
-      const data = await apiRequest('/api/maintenance/broken-links');
+      const data = await run(() => apiRequest('/api/maintenance/broken-links'));
       setResult(JSON.stringify(data, null, 2));
     } catch (error) {
-      setResult(error instanceof ApiError ? error.message : 'Failed to check broken links');
+      setResult(getErrorMessage(error, 'Failed to check broken links'));
     }
   });
 
   const runDuplicates = () => runAction('duplicates', async () => {
     try {
-      const data = await apiRequest('/api/maintenance/duplicates?compute=1&limit=200');
+      const data = await run(() => apiRequest('/api/maintenance/duplicates?compute=1&limit=200'));
       setResult(JSON.stringify(data, null, 2));
     } catch (error) {
-      setResult(error instanceof ApiError ? error.message : 'Failed to scan duplicates');
+      setResult(getErrorMessage(error, 'Failed to scan duplicates'));
     }
   });
 
   const downloadExport = () => runAction('export', async () => {
     try {
-      const blob = await apiRequest<Blob>('/api/maintenance/export', {
+      const blob = await run(() => apiRequest<Blob>('/api/maintenance/export', {
         responseType: 'blob',
-      });
+      }));
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
@@ -139,17 +142,17 @@ export function AdminToolsModal({ open, onClose }: AdminToolsModalProps) {
       URL.revokeObjectURL(url);
       setResult('Export downloaded.');
     } catch (error) {
-      setResult(error instanceof ApiError ? error.message : 'Failed to export metadata');
+      setResult(getErrorMessage(error, 'Failed to export metadata'));
     }
   });
 
   const clearLogs = () => runAction('clearLogs', async () => {
     try {
-      await apiRequest('/api/logs', { method: 'DELETE' });
+      await run(() => apiRequest('/api/logs', { method: 'DELETE' }));
       setLogs([]);
       setResult('Logs cleared.');
     } catch (error) {
-      setResult(error instanceof ApiError ? error.message : 'Failed to clear logs');
+      setResult(getErrorMessage(error, 'Failed to clear logs'));
     }
   });
 

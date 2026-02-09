@@ -1,7 +1,12 @@
 import { getTokenTtlMs, isDevBypassEnabled, issueToken } from '../_utils/auth';
+import { checkEnvOrFail } from '../_utils/env';
 
 export async function onRequestPost(context) {
   const { request, env } = context;
+
+  const envError = checkEnvOrFail(env);
+  if (envError) return envError;
+
   try {
     if (isDevBypassEnabled(env)) {
       const hasSecret = Boolean(env?.JWT_SECRET || env?.ADMIN_PASSWORD);
@@ -9,10 +14,6 @@ export async function onRequestPost(context) {
         ? await issueToken(env, getTokenTtlMs(env))
         : 'dev-local';
       return Response.json({ token });
-    }
-
-    if (!env.ADMIN_PASSWORD) {
-      return new Response('Server is not configured', { status: 500 });
     }
 
     const { password } = await request.json();

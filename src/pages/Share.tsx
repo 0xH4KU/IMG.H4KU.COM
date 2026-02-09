@@ -3,29 +3,10 @@ import { Lock, Download, RefreshCw } from 'lucide-react';
 import { downloadZip } from '../utils/zip';
 import { DELIVERY_HOSTS, shouldUseDownloadProxy, shouldUseFileProxy } from '../utils/url';
 import { formatBytes, normalizeDownloadName } from '../utils/format';
+import { loadShareData, ShareInfo, ShareItem } from '../utils/shareApi';
+import { ApiError } from '../utils/api';
+import { getErrorMessage } from '../utils/errors';
 import styles from './Share.module.css';
-
-interface ShareInfo {
-  id: string;
-  title: string;
-  description?: string;
-  domain?: 'h4ku' | 'lum';
-  createdAt?: string;
-  updatedAt?: string;
-}
-
-interface ShareItem {
-  key: string;
-  size?: number;
-  uploaded?: string | null;
-  type?: string | null;
-  missing?: boolean;
-}
-
-interface ShareResponse {
-  share?: ShareInfo;
-  items?: ShareItem[];
-}
 
 const host = window.location.hostname;
 const useFileProxy = shouldUseFileProxy(host);
@@ -53,31 +34,18 @@ export function Share() {
     setLoading(true);
     setError('');
     try {
-      const res = await fetch(`/api/share/${shareId}`, {
-        method: pwd ? 'POST' : 'GET',
-        headers: pwd ? { 'Content-Type': 'application/json' } : undefined,
-        body: pwd ? JSON.stringify({ password: pwd }) : undefined,
-      });
-
-      if (res.status === 401) {
-        const text = await res.text();
-        setRequiresPassword(true);
-        setError(text && !text.includes('password_required') ? text : '');
-        setLoading(false);
-        return;
-      }
-      if (!res.ok) {
-        setError(await res.text());
-        setLoading(false);
-        return;
-      }
-
-      const data = await res.json() as ShareResponse;
+      const data = await loadShareData({ shareId, password: pwd });
       setShare(data.share || null);
       setItems(data.items || []);
       setRequiresPassword(false);
-    } catch {
-      setError('Failed to load delivery.');
+    } catch (nextError) {
+      if (nextError instanceof ApiError && nextError.status === 401) {
+        setRequiresPassword(true);
+        const apiError = nextError as ApiError;
+        setError(apiError.message === 'password_required' ? '' : apiError.message);
+      } else {
+        setError(getErrorMessage(nextError, 'Failed to load delivery.'));
+      }
     } finally {
       setLoading(false);
     }

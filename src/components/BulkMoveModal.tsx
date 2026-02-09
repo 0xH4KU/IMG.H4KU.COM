@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
-import { apiRequest, ApiError } from '../utils/api';
+import { apiRequest } from '../utils/api';
+import { getErrorMessage } from '../utils/errors';
+import { useApiAction } from '../hooks/useApiAction';
 import styles from './BulkMoveModal.module.css';
 
 interface BulkMoveModalProps {
@@ -15,6 +17,7 @@ export function BulkMoveModal({ open, onClose, keys, onComplete }: BulkMoveModal
   const [targetFolder, setTargetFolder] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const { run } = useApiAction();
 
   useEffect(() => {
     if (!open) return;
@@ -22,10 +25,10 @@ export function BulkMoveModal({ open, onClose, keys, onComplete }: BulkMoveModal
     setError('');
     const fetchFolders = async () => {
       try {
-        const data = await apiRequest<{ folders?: string[] }>('/api/folders');
+        const data = await run(() => apiRequest<{ folders?: string[] }>('/api/folders'));
         setFolders(Array.isArray(data.folders) ? data.folders : []);
-      } catch {
-        // Ignore
+      } catch (nextError) {
+        setError(getErrorMessage(nextError, 'Failed to load folders.'));
       }
     };
     fetchFolders();
@@ -38,10 +41,10 @@ export function BulkMoveModal({ open, onClose, keys, onComplete }: BulkMoveModal
     setLoading(true);
     setError('');
     try {
-      const data = await apiRequest<{ moved: number; skipped: number }>('/api/images/move', {
+      const data = await run(() => apiRequest<{ moved: number; skipped: number }>('/api/images/move', {
         method: 'POST',
         body: { keys, targetFolder },
-      });
+      }));
 
       onComplete();
       if (data.skipped > 0) {
@@ -49,8 +52,8 @@ export function BulkMoveModal({ open, onClose, keys, onComplete }: BulkMoveModal
       } else {
         onClose();
       }
-    } catch (error) {
-      setError(error instanceof ApiError ? error.message : 'Failed to move files.');
+    } catch (nextError) {
+      setError(getErrorMessage(nextError, 'Failed to move files.'));
     } finally {
       setLoading(false);
     }

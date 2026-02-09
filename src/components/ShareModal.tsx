@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
 import { X, Copy, Check } from 'lucide-react';
-import { apiRequest, ApiError } from '../utils/api';
+import { apiRequest } from '../utils/api';
 import { resolveShareOrigin } from '../utils/url';
 import { useTransientMessage } from '../hooks/useTransientMessage';
+import { getErrorMessage } from '../utils/errors';
+import { useApiAction } from '../hooks/useApiAction';
 import styles from './ShareModal.module.css';
 
 interface ShareModalProps {
@@ -28,6 +30,7 @@ export function ShareModal({ open, onClose, items = [], folder = null, domain }:
   const [error, setError] = useState('');
   const { message: copiedState, show: showCopied, clear: clearCopied } = useTransientMessage(2000);
   const copied = copiedState === 'copied';
+  const { run } = useApiAction();
 
   useEffect(() => {
     if (!open) return;
@@ -50,7 +53,7 @@ export function ShareModal({ open, onClose, items = [], folder = null, domain }:
     setLoading(true);
     setError('');
     try {
-      const data = await apiRequest<CreateShareResponse>('/api/shares', {
+      const data = await run(() => apiRequest<CreateShareResponse>('/api/shares', {
         method: 'POST',
         body: {
           title,
@@ -60,7 +63,7 @@ export function ShareModal({ open, onClose, items = [], folder = null, domain }:
           folder: items.length === 0 ? folder : undefined,
           domain: shareDomain,
         },
-      });
+      }));
 
       const id = data.share?.id;
       if (id) {
@@ -69,7 +72,7 @@ export function ShareModal({ open, onClose, items = [], folder = null, domain }:
         setShareUrl(data.url || '');
       }
     } catch (error) {
-      setError(error instanceof ApiError ? error.message : 'Failed to create delivery.');
+      setError(getErrorMessage(error, 'Failed to create delivery.'));
     } finally {
       setLoading(false);
     }

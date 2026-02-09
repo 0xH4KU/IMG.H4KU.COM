@@ -1,4 +1,5 @@
 import { getAuthToken } from '../contexts/AuthContext';
+import { ApiError } from './api-error.ts';
 
 interface ApiRequestOptions {
   method?: string;
@@ -8,15 +9,9 @@ interface ApiRequestOptions {
   responseType?: 'auto' | 'json' | 'text' | 'blob';
 }
 
-export class ApiError extends Error {
-  status: number;
+export type { ApiRequestOptions };
 
-  constructor(message: string, status: number) {
-    super(message);
-    this.name = 'ApiError';
-    this.status = status;
-  }
-}
+export { ApiError };
 
 function shouldUseJsonBody(body: unknown): boolean {
   return body !== undefined && body !== null && !(body instanceof FormData);

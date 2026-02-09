@@ -1,8 +1,12 @@
 import { useEffect, useState } from 'react';
 import { X, Copy, Trash2, RefreshCw } from 'lucide-react';
-import { apiRequest, ApiError } from '../utils/api';
+import { ConfirmModal } from './ConfirmModal';
+import { apiRequest } from '../utils/api';
 import { resolveShareOrigin } from '../utils/url';
 import { useTransientMessage } from '../hooks/useTransientMessage';
+import { useConfirmDialog } from '../hooks/useDialogs';
+import { getErrorMessage } from '../utils/errors';
+import { useApiAction } from '../hooks/useApiAction';
 import styles from './ShareManagerModal.module.css';
 
 interface ShareManagerModalProps {
@@ -26,15 +30,17 @@ export function ShareManagerModal({ open, onClose }: ShareManagerModalProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const { message: copiedId, show: showCopied } = useTransientMessage(1500);
+  const { run } = useApiAction();
+  const { confirm, confirmProps } = useConfirmDialog();
 
   const fetchShares = async () => {
     setLoading(true);
     setError('');
     try {
-      const data = await apiRequest<{ shares?: ShareInfo[] }>('/api/shares');
+      const data = await run(() => apiRequest<{ shares?: ShareInfo[] }>('/api/shares'));
       setShares(Array.isArray(data.shares) ? data.shares : []);
     } catch (error) {
-      setError(error instanceof ApiError ? error.message : 'Failed to load deliveries.');
+      setError(getErrorMessage(error, 'Failed to load deliveries.'));
     } finally {
       setLoading(false);
     }
@@ -54,12 +60,13 @@ export function ShareManagerModal({ open, onClose }: ShareManagerModalProps) {
   };
 
   const revokeShare = async (id: string) => {
-    if (!confirm('Revoke this delivery link?')) return;
+    const confirmed = await confirm('Revoke this delivery link?', { title: 'Revoke Delivery', danger: true });
+    if (!confirmed) return;
     try {
-      await apiRequest(`/api/shares?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+      await run(() => apiRequest(`/api/shares?id=${encodeURIComponent(id)}`, { method: 'DELETE' }));
       setShares(prev => prev.filter(share => share.id !== id));
     } catch (error) {
-      alert(error instanceof ApiError ? error.message : 'Failed to revoke delivery.');
+      setError(getErrorMessage(error, 'Failed to revoke delivery.'));
     }
   };
 
@@ -110,6 +117,7 @@ export function ShareManagerModal({ open, onClose }: ShareManagerModalProps) {
             ))}
           </div>
         </div>
+        <ConfirmModal {...confirmProps} />
       </div>
     </div>
   );

@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { X } from 'lucide-react';
-import { apiRequest, ApiError } from '../utils/api';
+import { apiRequest } from '../utils/api';
+import { getErrorMessage } from '../utils/errors';
+import { useApiAction } from '../hooks/useApiAction';
 import styles from './BulkRenameModal.module.css';
 
 interface BulkRenameModalProps {
@@ -36,6 +38,7 @@ export function BulkRenameModal({ open, onClose, keys, onComplete }: BulkRenameM
   const [keepExt, setKeepExt] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const { run } = useApiAction();
 
   const preview = useMemo<PreviewItem[]>(() => {
     const seen = new Set<string>();
@@ -79,10 +82,10 @@ export function BulkRenameModal({ open, onClose, keys, onComplete }: BulkRenameM
     }
     setLoading(true);
     try {
-      const data = await apiRequest<{ renamed: number; skipped: number }>('/api/images/rename', {
+      const data = await run(() => apiRequest<{ renamed: number; skipped: number }>('/api/images/rename', {
         method: 'POST',
         body: { renames: renames.map(item => ({ from: item.from, to: item.to })) },
-      });
+      }));
 
       onComplete();
       if (data.skipped > 0) {
@@ -90,8 +93,8 @@ export function BulkRenameModal({ open, onClose, keys, onComplete }: BulkRenameM
       } else {
         onClose();
       }
-    } catch (error) {
-      setError(error instanceof ApiError ? error.message : 'Failed to rename files.');
+    } catch (nextError) {
+      setError(getErrorMessage(nextError, 'Failed to rename files.'));
     } finally {
       setLoading(false);
     }
