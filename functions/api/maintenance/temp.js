@@ -1,21 +1,7 @@
 import { listAllObjects, getImageMeta, saveImageMeta, getHashMeta, saveHashMeta, getShareMeta, saveShareMeta, getMaintenanceMeta, saveMaintenanceMeta } from '../../_utils/meta';
 import { logError } from '../../_utils/log';
-
-// Auth utilities (inlined)
-function verifyToken(token, secret) {
-  try {
-    const [data, sig] = token.split('.');
-    if (btoa(secret + data).slice(0, 16) !== sig) return false;
-    return JSON.parse(atob(data)).exp > Date.now();
-  } catch { return false; }
-}
-
-function authenticate(request, env) {
-  if (env?.DEV_BYPASS_AUTH === '1' || env?.DEV_BYPASS_AUTH === 'true') return true;
-  const auth = request.headers.get('Authorization');
-  if (!auth?.startsWith('Bearer ')) return false;
-  return verifyToken(auth.slice(7), env.JWT_SECRET || env.ADMIN_PASSWORD);
-}
+import { authenticateRequest } from '../../_utils/auth';
+import { cleanKey, isReservedKey } from '../../_utils/keys';
 
 function parseNumber(value, fallback) {
   const n = Number(value);
@@ -25,7 +11,7 @@ function parseNumber(value, fallback) {
 export async function onRequestPost(context) {
   const { request, env } = context;
 
-  if (!authenticate(request, env)) {
+  if (!(await authenticateRequest(request, env))) {
     return new Response('Unauthorized', { status: 401 });
   }
 
@@ -34,8 +20,9 @@ export async function onRequestPost(context) {
     const days = parseNumber(url.searchParams.get('days'), 30);
     const dryRun = url.searchParams.get('dryRun') === '1';
     const auto = url.searchParams.get('auto') === '1';
-    const prefix = (url.searchParams.get('prefix') || 'temp/').replace(/^\/+/, '');
-    if (prefix.startsWith('.config/')) {
+    const rawPrefix = cleanKey(url.searchParams.get('prefix') || 'temp/');
+    const prefix = rawPrefix.endsWith('/') ? rawPrefix : `${rawPrefix}/`;
+    if (!rawPrefix || isReservedKey(rawPrefix)) {
       return new Response('Invalid prefix', { status: 400 });
     }
 
@@ -46,7 +33,7 @@ export async function onRequestPost(context) {
     }
 
     const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
-    const objects = await listAllObjects(env, prefix.endsWith('/') ? prefix : `${prefix}/`);
+    const objects = await listAllObjects(env, prefix);
     const toDelete = objects.filter(obj => obj.uploaded && obj.uploaded.getTime() < cutoff);
 
     if (!dryRun && toDelete.length > 0) {

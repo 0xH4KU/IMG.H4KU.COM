@@ -1,82 +1,20 @@
-import { getHashMeta, saveHashMeta, getShareMeta, saveShareMeta } from '../_utils/meta';
+import { getHashMeta, saveHashMeta, getShareMeta, saveShareMeta, listAllObjects, getFolderMeta, saveFolderMeta, getImageMeta, saveImageMeta } from '../_utils/meta';
 import { moveToTrash } from '../_utils/trash';
 import { logError } from '../_utils/log';
-
-// Auth utilities (inlined)
-function verifyToken(token, secret) {
-  try {
-    const [data, sig] = token.split('.');
-    if (btoa(secret + data).slice(0, 16) !== sig) return false;
-    return JSON.parse(atob(data)).exp > Date.now();
-  } catch { return false; }
-}
-
-function authenticate(request, env) {
-  if (env?.DEV_BYPASS_AUTH === '1' || env?.DEV_BYPASS_AUTH === 'true') return true;
-  const auth = request.headers.get('Authorization');
-  if (!auth?.startsWith('Bearer ')) return false;
-  return verifyToken(auth.slice(7), env.JWT_SECRET || env.ADMIN_PASSWORD);
-}
-
-const FOLDER_META_KEY = '.config/folders.json';
-const IMAGE_META_KEY = '.config/image-meta.json';
-
-async function listAllObjects(env, prefix = '') {
-  const objects = [];
-  let cursor;
-  do {
-    const listed = await env.R2.list({ prefix, cursor, limit: 1000 });
-    objects.push(...listed.objects);
-    cursor = listed.truncated ? listed.cursor : undefined;
-  } while (cursor);
-  return objects;
-}
-
-async function getFolderMeta(env) {
-  try {
-    const obj = await env.R2.get(FOLDER_META_KEY);
-    if (!obj) return { version: 1, updatedAt: new Date().toISOString(), folders: [] };
-    const data = JSON.parse(await obj.text());
-    return { version: 1, updatedAt: data.updatedAt || new Date().toISOString(), folders: Array.isArray(data.folders) ? data.folders : [] };
-  } catch {
-    return { version: 1, updatedAt: new Date().toISOString(), folders: [] };
-  }
-}
-
-async function saveFolderMeta(env, meta) {
-  meta.updatedAt = new Date().toISOString();
-  await env.R2.put(FOLDER_META_KEY, JSON.stringify(meta));
-}
-
-async function getImageMeta(env) {
-  try {
-    const obj = await env.R2.get(IMAGE_META_KEY);
-    if (!obj) return { version: 1, updatedAt: new Date().toISOString(), images: {} };
-    const data = JSON.parse(await obj.text());
-    return { version: 1, updatedAt: data.updatedAt || new Date().toISOString(), images: data.images || {} };
-  } catch {
-    return { version: 1, updatedAt: new Date().toISOString(), images: {} };
-  }
-}
-
-async function saveImageMeta(env, meta) {
-  meta.updatedAt = new Date().toISOString();
-  await env.R2.put(IMAGE_META_KEY, JSON.stringify(meta));
-}
-
+import { authenticateRequest } from '../_utils/auth';
+import { normalizeFolderSegment, isValidFolderSegment, isHiddenObjectKey } from '../_utils/keys';
 function normalizeFolder(name) {
-  if (!name) return '';
-  return name.trim().replace(/[^a-zA-Z0-9-_]/g, '-');
+  return normalizeFolderSegment(name);
 }
 
 function isValidFolder(name) {
-  return /^[a-zA-Z0-9][a-zA-Z0-9-_]*$/.test(name);
+  return isValidFolderSegment(name);
 }
 
 export async function onRequestGet(context) {
   const { request, env } = context;
 
-  if (!authenticate(request, env)) {
+  if (!(await authenticateRequest(request, env))) {
     return new Response('Unauthorized', { status: 401 });
   }
 
@@ -114,7 +52,7 @@ export async function onRequestGet(context) {
     const objects = await listAllObjects(env);
 
     for (const obj of objects) {
-      if (obj.key.startsWith('.config/')) continue;
+      if (isHiddenObjectKey(obj.key)) continue;
       const isTrash = obj.key.startsWith('trash/');
       if (!isTrash) {
         total.count += 1;
@@ -143,7 +81,7 @@ export async function onRequestGet(context) {
 
 export async function onRequestPost(context) {
   const { request, env } = context;
-  if (!authenticate(request, env)) {
+  if (!(await authenticateRequest(request, env))) {
     return new Response('Unauthorized', { status: 401 });
   }
 
@@ -175,7 +113,7 @@ export async function onRequestPost(context) {
 
 export async function onRequestPut(context) {
   const { request, env } = context;
-  if (!authenticate(request, env)) {
+  if (!(await authenticateRequest(request, env))) {
     return new Response('Unauthorized', { status: 401 });
   }
 
@@ -269,7 +207,7 @@ export async function onRequestPut(context) {
 
 export async function onRequestDelete(context) {
   const { request, env } = context;
-  if (!authenticate(request, env)) {
+  if (!(await authenticateRequest(request, env))) {
     return new Response('Unauthorized', { status: 401 });
   }
 

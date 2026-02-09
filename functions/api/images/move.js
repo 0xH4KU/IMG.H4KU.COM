@@ -1,30 +1,7 @@
 import { getImageMeta, saveImageMeta, getHashMeta, saveHashMeta, getShareMeta, saveShareMeta, getFolderMeta, saveFolderMeta } from '../../_utils/meta';
 import { logError } from '../../_utils/log';
-
-// Auth utilities (inlined)
-function verifyToken(token, secret) {
-  try {
-    const [data, sig] = token.split('.');
-    if (btoa(secret + data).slice(0, 16) !== sig) return false;
-    return JSON.parse(atob(data)).exp > Date.now();
-  } catch { return false; }
-}
-
-function authenticate(request, env) {
-  if (env?.DEV_BYPASS_AUTH === '1' || env?.DEV_BYPASS_AUTH === 'true') return true;
-  const auth = request.headers.get('Authorization');
-  if (!auth?.startsWith('Bearer ')) return false;
-  return verifyToken(auth.slice(7), env.JWT_SECRET || env.ADMIN_PASSWORD);
-}
-
-function cleanKey(key) {
-  return (key || '').trim().replace(/^\/+/, '');
-}
-
-function normalizeFolder(name) {
-  if (!name) return '';
-  return name.trim().replace(/[^a-zA-Z0-9-_]/g, '-');
-}
+import { authenticateRequest } from '../../_utils/auth';
+import { cleanKey, normalizeFolderPath, ensureSafeObjectKey } from '../../_utils/keys';
 
 function getBaseName(key) {
   const parts = key.split('/');
@@ -34,14 +11,14 @@ function getBaseName(key) {
 export async function onRequestPost(context) {
   const { request, env } = context;
 
-  if (!authenticate(request, env)) {
+  if (!(await authenticateRequest(request, env))) {
     return new Response('Unauthorized', { status: 401 });
   }
 
   try {
     const body = await request.json();
-    const keys = Array.isArray(body.keys) ? body.keys.filter(k => typeof k === 'string') : [];
-    const targetFolder = normalizeFolder(body.targetFolder || '');
+    const keys = Array.isArray(body.keys) ? body.keys.map(cleanKey).filter(Boolean) : [];
+    const targetFolder = normalizeFolderPath(body.targetFolder || '');
 
     if (keys.length === 0) {
       return new Response('Missing keys', { status: 400 });
@@ -60,12 +37,14 @@ export async function onRequestPost(context) {
 
     for (const pair of renames) {
       if (!pair.from || !pair.to) continue;
-      if (pair.from === pair.to) {
-        errors.push({ from: pair.from, to: pair.to, error: 'Same source and target' });
+      const fromValidity = ensureSafeObjectKey(pair.from);
+      const toValidity = ensureSafeObjectKey(pair.to);
+      if (!fromValidity.ok || !toValidity.ok) {
+        errors.push({ from: pair.from, to: pair.to, error: 'Invalid key path' });
         continue;
       }
-      if (pair.from.startsWith('.config/') || pair.to.startsWith('.config/')) {
-        errors.push({ from: pair.from, to: pair.to, error: 'Invalid target' });
+      if (pair.from === pair.to) {
+        errors.push({ from: pair.from, to: pair.to, error: 'Same source and target' });
         continue;
       }
       if (seenTargets.has(pair.to)) {

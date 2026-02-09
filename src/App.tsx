@@ -6,20 +6,19 @@ import { Landing } from './pages/Landing';
 import { Share } from './pages/Share';
 import styles from './App.module.css';
 
+function resolveRoute(pathname: string): 'console' | 'share' | 'landing' {
+  if (pathname.startsWith('/console')) return 'console';
+  if (pathname.startsWith('/share/')) return 'share';
+  return 'landing';
+}
+
 function AppContent() {
   const { isAuthenticated, isLoading } = useAuth();
   const [route, setRoute] = useState<'console' | 'share' | 'landing'>('landing');
 
   useEffect(() => {
     const checkRoute = () => {
-      const path = window.location.pathname;
-      if (path.startsWith('/console')) {
-        setRoute('console');
-      } else if (path.startsWith('/share/')) {
-        setRoute('share');
-      } else {
-        setRoute('landing');
-      }
+      setRoute(resolveRoute(window.location.pathname));
     };
     checkRoute();
     window.addEventListener('popstate', checkRoute);

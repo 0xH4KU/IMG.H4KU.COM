@@ -2,6 +2,8 @@ import { useState, useRef, useCallback, DragEvent, ChangeEvent, useEffect, Keybo
 import { Upload, X, Check, AlertCircle, Pause, Play, RotateCcw, ChevronUp, ChevronDown } from 'lucide-react';
 import { getAuthToken } from '../contexts/AuthContext';
 import { generateThumbnail } from '../utils/thumbnail';
+import { normalizeFolderPath } from '../utils/key';
+import { getStoredValue, setStoredValue } from '../utils/storage';
 import styles from './Uploader.module.css';
 
 interface UploaderProps {
@@ -19,6 +21,12 @@ interface UploadFile {
   error?: string;
 }
 
+interface UploadResult {
+  key: string;
+  size: number;
+  type: string;
+}
+
 const MAX_CONCURRENT = 3;
 
 export function Uploader({ folder, onUploadComplete }: UploaderProps) {
@@ -29,7 +37,7 @@ export function Uploader({ folder, onUploadComplete }: UploaderProps) {
   const [activeCount, setActiveCount] = useState(0);
   const [collapsed, setCollapsed] = useState(() => {
     if (typeof window === 'undefined') return false;
-    return window.localStorage.getItem(COLLAPSE_KEY) === 'true';
+    return getStoredValue(COLLAPSE_KEY) === 'true';
   });
   const inputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
@@ -75,7 +83,7 @@ export function Uploader({ folder, onUploadComplete }: UploaderProps) {
       });
 
       if (res.ok) {
-        const result = await res.json();
+        const result = await res.json() as UploadResult;
 
         // Upload thumbnail if generated
         const thumbnail = await thumbnailPromise;
@@ -121,8 +129,9 @@ export function Uploader({ folder, onUploadComplete }: UploaderProps) {
     const uploadFiles: UploadFile[] = newFiles.map(file => {
       const relativePath = (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name;
       const parts = relativePath.split('/');
-      const relativeDir = parts.length > 1 ? parts.slice(0, -1).join('/') : '';
-      const targetFolder = [folderRef.current, relativeDir].filter(Boolean).join('/');
+      const relativeDir = parts.length > 1 ? normalizeFolderPath(parts.slice(0, -1).join('/')) : '';
+      const baseFolder = normalizeFolderPath(folderRef.current);
+      const targetFolder = [baseFolder, relativeDir].filter(Boolean).join('/');
       return {
         id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
         file,
@@ -168,29 +177,29 @@ export function Uploader({ folder, onUploadComplete }: UploaderProps) {
     }
   }, [addFiles]);
 
-  const removeFile = (id: string) => {
+  const removeFile = useCallback((id: string) => {
     setFiles(prev => prev.filter(f => f.id !== id));
-  };
+  }, []);
 
-  const clearCompleted = () => {
+  const clearCompleted = useCallback(() => {
     setFiles(prev => prev.filter(f => f.status !== 'success'));
-  };
+  }, []);
 
-  const retryFile = (id: string) => {
+  const retryFile = useCallback((id: string) => {
     setFiles(prev =>
       prev.map(f => (f.id === id ? { ...f, status: 'pending', error: undefined } : f))
     );
-  };
+  }, []);
 
-  const retryFailed = () => {
+  const retryFailed = useCallback(() => {
     setFiles(prev =>
       prev.map(f => (f.status === 'error' ? { ...f, status: 'pending', error: undefined } : f))
     );
-  };
+  }, []);
 
-  const togglePause = () => {
+  const togglePause = useCallback(() => {
     setPaused(prev => !prev);
-  };
+  }, []);
 
   const pendingCount = files.filter(f => f.status === 'pending').length;
   const errorCount = files.filter(f => f.status === 'error').length;
@@ -211,7 +220,7 @@ export function Uploader({ folder, onUploadComplete }: UploaderProps) {
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    window.localStorage.setItem(COLLAPSE_KEY, String(collapsed));
+    setStoredValue(COLLAPSE_KEY, String(collapsed));
   }, [collapsed]);
 
   return (

@@ -1,48 +1,18 @@
 import { logError } from '../_utils/log';
-
-// Auth utilities (inlined)
-function verifyToken(token, secret) {
-  try {
-    const [data, sig] = token.split('.');
-    if (btoa(secret + data).slice(0, 16) !== sig) return false;
-    return JSON.parse(atob(data)).exp > Date.now();
-  } catch { return false; }
-}
-
-function authenticate(request, env) {
-  if (env?.DEV_BYPASS_AUTH === '1' || env?.DEV_BYPASS_AUTH === 'true') return true;
-  const auth = request.headers.get('Authorization');
-  if (!auth?.startsWith('Bearer ')) return false;
-  return verifyToken(auth.slice(7), env.JWT_SECRET || env.ADMIN_PASSWORD);
-}
-
-const META_KEY = '.config/image-meta.json';
-
-async function getMeta(env) {
-  try {
-    const obj = await env.R2.get(META_KEY);
-    if (!obj) return { version: 1, updatedAt: new Date().toISOString(), images: {} };
-    return JSON.parse(await obj.text());
-  } catch {
-    return { version: 1, updatedAt: new Date().toISOString(), images: {} };
-  }
-}
-
-async function saveMeta(env, meta) {
-  meta.updatedAt = new Date().toISOString();
-  await env.R2.put(META_KEY, JSON.stringify(meta));
-}
+import { authenticateRequest } from '../_utils/auth';
+import { getImageMeta, saveImageMeta } from '../_utils/meta';
+import { cleanKey } from '../_utils/keys';
 
 // GET /api/metadata - Get all metadata
 export async function onRequestGet(context) {
   const { request, env } = context;
 
-  if (!authenticate(request, env)) {
+  if (!(await authenticateRequest(request, env))) {
     return new Response('Unauthorized', { status: 401 });
   }
 
   try {
-    const meta = await getMeta(env);
+    const meta = await getImageMeta(env);
     return Response.json(meta);
   } catch (err) {
     await logError(env, {
@@ -60,19 +30,21 @@ export async function onRequestGet(context) {
 export async function onRequestPut(context) {
   const { request, env } = context;
 
-  if (!authenticate(request, env)) {
+  if (!(await authenticateRequest(request, env))) {
     return new Response('Unauthorized', { status: 401 });
   }
 
   try {
     const body = await request.json();
-    const { key, tags, favorite } = body;
+    const key = cleanKey(body.key);
+    const tags = body.tags;
+    const favorite = body.favorite;
 
     if (!key) {
       return new Response('Missing key', { status: 400 });
     }
 
-    const meta = await getMeta(env);
+    const meta = await getImageMeta(env);
 
     // Initialize if not exists
     if (!meta.images[key]) {
@@ -81,10 +53,12 @@ export async function onRequestPut(context) {
 
     // Update only provided fields
     if (tags !== undefined) {
-      meta.images[key].tags = tags;
+      meta.images[key].tags = Array.isArray(tags)
+        ? tags.filter(tag => typeof tag === 'string')
+        : [];
     }
     if (favorite !== undefined) {
-      meta.images[key].favorite = favorite;
+      meta.images[key].favorite = Boolean(favorite);
     }
 
     // Clean up empty entries
@@ -92,7 +66,7 @@ export async function onRequestPut(context) {
       delete meta.images[key];
     }
 
-    await saveMeta(env, meta);
+    await saveImageMeta(env, meta);
 
     return Response.json({
       ok: true,
@@ -113,23 +87,23 @@ export async function onRequestPut(context) {
 export async function onRequestDelete(context) {
   const { request, env } = context;
 
-  if (!authenticate(request, env)) {
+  if (!(await authenticateRequest(request, env))) {
     return new Response('Unauthorized', { status: 401 });
   }
 
   const url = new URL(request.url);
-  const key = url.searchParams.get('key');
+  const key = cleanKey(url.searchParams.get('key'));
 
   if (!key) {
     return new Response('Missing key', { status: 400 });
   }
 
   try {
-    const meta = await getMeta(env);
+    const meta = await getImageMeta(env);
 
     if (meta.images[key]) {
       delete meta.images[key];
-      await saveMeta(env, meta);
+      await saveImageMeta(env, meta);
     }
 
     return Response.json({ ok: true });

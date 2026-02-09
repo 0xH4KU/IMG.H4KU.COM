@@ -4,6 +4,7 @@ interface DownloadZipOptions {
   name: string;
   keys: string[];
   getUrl: (key: string) => string;
+  onProgress?: (finished: number, total: number) => void;
 }
 
 function uniqueName(name: string, used: Map<string, number>) {
@@ -20,17 +21,23 @@ function uniqueName(name: string, used: Map<string, number>) {
   return `${name}-${count}`;
 }
 
-export async function downloadZip({ name, keys, getUrl }: DownloadZipOptions) {
+export async function downloadZip({ name, keys, getUrl, onProgress }: DownloadZipOptions) {
   const entries: Record<string, Uint8Array> = {};
   const usedNames = new Map<string, number>();
 
+  let finished = 0;
+  const total = keys.length;
+
   for (const key of keys) {
     const res = await fetch(getUrl(key));
-    if (!res.ok) continue;
-    const buffer = new Uint8Array(await res.arrayBuffer());
-    const baseName = key.split('/').pop() || key;
-    const fileName = uniqueName(baseName, usedNames);
-    entries[fileName] = buffer;
+    if (res.ok) {
+      const buffer = new Uint8Array(await res.arrayBuffer());
+      const baseName = key.split('/').pop() || key;
+      const fileName = uniqueName(baseName, usedNames);
+      entries[fileName] = buffer;
+    }
+    finished += 1;
+    onProgress?.(finished, total);
   }
 
   const zipped = zipSync(entries, { level: 6 });

@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
-import { getAuthToken } from './AuthContext';
+import { apiRequest } from '../utils/api';
 
 export type TagColor = 'red' | 'orange' | 'yellow' | 'green' | 'blue' | 'purple';
 
@@ -36,15 +36,9 @@ export function ImageMetaProvider({ children }: { children: ReactNode }) {
 
   const refreshMeta = useCallback(async () => {
     setLoading(true);
-    const token = getAuthToken();
     try {
-      const res = await fetch('/api/metadata', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        const data: MetaData = await res.json();
-        setMeta(data.images || {});
-      }
+      const data = await apiRequest<MetaData>('/api/metadata');
+      setMeta(data.images || {});
     } catch {
       // Ignore errors
     } finally {
@@ -57,7 +51,6 @@ export function ImageMetaProvider({ children }: { children: ReactNode }) {
   }, [refreshMeta]);
 
   const updateMeta = useCallback(async (key: string, updates: Partial<ImageMeta>) => {
-    const token = getAuthToken();
     const current = meta[key] || { tags: [], favorite: false };
     const updated = { ...current, ...updates };
 
@@ -72,18 +65,10 @@ export function ImageMetaProvider({ children }: { children: ReactNode }) {
     });
 
     try {
-      const res = await fetch('/api/metadata', {
+      await apiRequest('/api/metadata', {
         method: 'PUT',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ key, ...updates }),
+        body: { key, ...updates },
       });
-      if (!res.ok) {
-        // Rollback on failure
-        setMeta(prev => ({ ...prev, [key]: current }));
-      }
     } catch {
       // Rollback on failure
       setMeta(prev => ({ ...prev, [key]: current }));

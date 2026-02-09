@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { X, Copy, Trash2, RefreshCw } from 'lucide-react';
-import { getAuthToken } from '../contexts/AuthContext';
+import { apiRequest, ApiError } from '../utils/api';
+import { resolveShareOrigin } from '../utils/url';
+import { useTransientMessage } from '../hooks/useTransientMessage';
 import styles from './ShareManagerModal.module.css';
 
 interface ShareManagerModalProps {
@@ -19,33 +21,20 @@ interface ShareInfo {
   domain?: string;
 }
 
-const ADMIN_ORIGINS = {
-  h4ku: 'https://admin.img.h4ku.com',
-  lum: 'https://admin.img.lum.bio',
-};
-
 export function ShareManagerModal({ open, onClose }: ShareManagerModalProps) {
   const [shares, setShares] = useState<ShareInfo[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [copiedId, setCopiedId] = useState('');
+  const { message: copiedId, show: showCopied } = useTransientMessage(1500);
 
   const fetchShares = async () => {
     setLoading(true);
     setError('');
-    const token = getAuthToken();
     try {
-      const res = await fetch('/api/shares', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setShares(Array.isArray(data.shares) ? data.shares : []);
-      } else {
-        setError(await res.text());
-      }
-    } catch {
-      setError('Failed to load deliveries.');
+      const data = await apiRequest<{ shares?: ShareInfo[] }>('/api/shares');
+      setShares(Array.isArray(data.shares) ? data.shares : []);
+    } catch (error) {
+      setError(error instanceof ApiError ? error.message : 'Failed to load deliveries.');
     } finally {
       setLoading(false);
     }
@@ -58,39 +47,19 @@ export function ShareManagerModal({ open, onClose }: ShareManagerModalProps) {
 
   if (!open) return null;
 
-  const resolveShareOrigin = (domain?: string) => {
-    const origin = window.location.origin;
-    const host = window.location.hostname;
-    if (host === 'localhost' || host.endsWith('.pages.dev')) return origin;
-    const normalized = domain === 'lum' ? 'lum' : 'h4ku';
-    if (normalized === 'lum') {
-      return host.includes('lum.bio') ? origin : ADMIN_ORIGINS.lum;
-    }
-    return host.includes('h4ku.com') ? origin : ADMIN_ORIGINS.h4ku;
-  };
-
   const copyLink = async (id: string, domain?: string) => {
-    const url = `${resolveShareOrigin(domain)}/share/${id}`;
+    const url = `${resolveShareOrigin(domain === 'lum' ? 'lum' : 'h4ku')}/share/${id}`;
     await navigator.clipboard.writeText(url);
-    setCopiedId(id);
-    setTimeout(() => setCopiedId(''), 1500);
+    showCopied(id);
   };
 
   const revokeShare = async (id: string) => {
     if (!confirm('Revoke this delivery link?')) return;
-    const token = getAuthToken();
     try {
-      const res = await fetch(`/api/shares?id=${encodeURIComponent(id)}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        setShares(prev => prev.filter(share => share.id !== id));
-      } else {
-        alert(await res.text());
-      }
-    } catch {
-      alert('Failed to revoke delivery.');
+      await apiRequest(`/api/shares?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+      setShares(prev => prev.filter(share => share.id !== id));
+    } catch (error) {
+      alert(error instanceof ApiError ? error.message : 'Failed to revoke delivery.');
     }
   };
 

@@ -1,41 +1,16 @@
 import { listAllObjects } from '../_utils/meta';
 import { logError } from '../_utils/log';
-
-// Auth utilities (inlined)
-function verifyToken(token, secret) {
-  try {
-    const [data, sig] = token.split('.');
-    if (btoa(secret + data).slice(0, 16) !== sig) return false;
-    return JSON.parse(atob(data)).exp > Date.now();
-  } catch { return false; }
-}
-
-function authenticate(request, env) {
-  if (env?.DEV_BYPASS_AUTH === '1' || env?.DEV_BYPASS_AUTH === 'true') return true;
-  const auth = request.headers.get('Authorization');
-  if (!auth?.startsWith('Bearer ')) return false;
-  return verifyToken(auth.slice(7), env.JWT_SECRET || env.ADMIN_PASSWORD);
-}
-
-const SHARE_KEY = '.config/share-meta.json';
+import { authenticateRequest } from '../_utils/auth';
+import { getShareMeta, saveShareMeta } from '../_utils/meta';
+import { cleanKey, normalizeFolderPath, isHiddenObjectKey } from '../_utils/keys';
 const ADMIN_ORIGINS = {
   h4ku: 'https://admin.img.h4ku.com',
   lum: 'https://admin.img.lum.bio',
 };
 
-async function getShareMeta(env) {
-  try {
-    const obj = await env.R2.get(SHARE_KEY);
-    if (!obj) return { version: 1, updatedAt: new Date().toISOString(), shares: {} };
-    return JSON.parse(await obj.text());
-  } catch {
-    return { version: 1, updatedAt: new Date().toISOString(), shares: {} };
-  }
-}
-
-async function saveShareMeta(env, meta) {
-  meta.updatedAt = new Date().toISOString();
-  await env.R2.put(SHARE_KEY, JSON.stringify(meta));
+function sanitizeShareItems(items) {
+  if (!Array.isArray(items)) return [];
+  return Array.from(new Set(items.map(cleanKey).filter(Boolean)));
 }
 
 function bytesToBase64(bytes) {
@@ -72,7 +47,7 @@ function resolveShareOrigin(request, domain) {
 
 export async function onRequestGet(context) {
   const { request, env } = context;
-  if (!authenticate(request, env)) {
+  if (!(await authenticateRequest(request, env))) {
     return new Response('Unauthorized', { status: 401 });
   }
 
@@ -102,7 +77,7 @@ export async function onRequestGet(context) {
 
 export async function onRequestPost(context) {
   const { request, env } = context;
-  if (!authenticate(request, env)) {
+  if (!(await authenticateRequest(request, env))) {
     return new Response('Unauthorized', { status: 401 });
   }
 
@@ -110,10 +85,8 @@ export async function onRequestPost(context) {
     const body = await request.json();
     const title = (body.title || '').trim();
     const description = (body.description || '').trim();
-    const items = Array.isArray(body.items)
-      ? Array.from(new Set(body.items.filter(k => typeof k === 'string')))
-      : [];
-    const folder = typeof body.folder === 'string' ? body.folder.trim().replace(/[^a-zA-Z0-9-_]/g, '-') : '';
+    const items = sanitizeShareItems(body.items);
+    const folder = normalizeFolderPath(body.folder || '');
     const password = typeof body.password === 'string' ? body.password : '';
     const domain = body.domain === 'lum' ? 'lum' : 'h4ku';
 
@@ -122,10 +95,10 @@ export async function onRequestPost(context) {
       const prefix = `${folder}/`;
       const objects = await listAllObjects(env, prefix);
       resolvedItems = objects
-        .filter(obj => !obj.key.startsWith('.config/'))
+        .filter(obj => !isHiddenObjectKey(obj.key))
         .map(obj => obj.key);
     }
-    resolvedItems = Array.from(new Set(resolvedItems));
+    resolvedItems = sanitizeShareItems(resolvedItems);
 
     if (resolvedItems.length === 0) {
       return new Response('Missing items', { status: 400 });
@@ -170,12 +143,12 @@ export async function onRequestPost(context) {
 
 export async function onRequestDelete(context) {
   const { request, env } = context;
-  if (!authenticate(request, env)) {
+  if (!(await authenticateRequest(request, env))) {
     return new Response('Unauthorized', { status: 401 });
   }
 
   const url = new URL(request.url);
-  const id = url.searchParams.get('id');
+  const id = cleanKey(url.searchParams.get('id'));
   if (!id) return new Response('Missing id', { status: 400 });
 
   try {

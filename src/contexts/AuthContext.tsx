@@ -1,4 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { apiRequest } from '../utils/api';
+import { getStoredValue, removeStoredValue, setStoredValue } from '../utils/storage';
 
 interface AuthContextType {
   isAuthenticated: boolean;
@@ -14,47 +16,16 @@ const DEV_BYPASS_AUTH = import.meta.env.VITE_DEV_BYPASS_AUTH === '1'
   || import.meta.env.VITE_DEV_BYPASS_AUTH === 'true';
 const DEV_TOKEN = 'dev-local';
 
-const getLocalStorage = (): Storage | null => {
-  try {
-    return window.localStorage;
-  } catch {
-    return null;
-  }
-};
-
-const getSessionStorage = (): Storage | null => {
-  try {
-    return window.sessionStorage;
-  } catch {
-    return null;
-  }
-};
-
 const getStoredToken = (): string | null => {
-  const local = getLocalStorage();
-  const localToken = local?.getItem(AUTH_KEY);
-  if (localToken) return localToken;
-  const session = getSessionStorage();
-  const sessionToken = session?.getItem(AUTH_KEY);
-  if (sessionToken && local) {
-    local.setItem(AUTH_KEY, sessionToken);
-    session?.removeItem(AUTH_KEY);
-  }
-  return sessionToken || null;
+  return getStoredValue(AUTH_KEY);
 };
 
 const setStoredToken = (token: string) => {
-  const local = getLocalStorage();
-  if (local) {
-    local.setItem(AUTH_KEY, token);
-    return;
-  }
-  getSessionStorage()?.setItem(AUTH_KEY, token);
+  setStoredValue(AUTH_KEY, token);
 };
 
 const clearStoredToken = () => {
-  getLocalStorage()?.removeItem(AUTH_KEY);
-  getSessionStorage()?.removeItem(AUTH_KEY);
+  removeStoredValue(AUTH_KEY);
 };
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -87,14 +58,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return true;
     }
     try {
-      const res = await fetch('/api/auth', {
+      const data = await apiRequest<{ token?: string }>('/api/auth', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password }),
+        body: { password },
+        auth: false,
       });
 
-      if (res.ok) {
-        const { token } = await res.json();
+      const token = data.token;
+      if (typeof token === 'string' && token.length > 0) {
         setStoredToken(token);
         setIsAuthenticated(true);
         return true;
@@ -127,10 +98,11 @@ export function useAuth() {
 
 async function verifyToken(token: string): Promise<boolean> {
   try {
-    const res = await fetch('/api/auth/verify', {
+    await apiRequest('/api/auth/verify', {
       headers: { Authorization: `Bearer ${token}` },
+      auth: false,
     });
-    return res.ok;
+    return true;
   } catch {
     return false;
   }

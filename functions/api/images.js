@@ -1,32 +1,20 @@
 import { getHashMeta, saveHashMeta } from '../_utils/meta';
 import { moveToTrash, restoreFromTrash } from '../_utils/trash';
 import { logError } from '../_utils/log';
+import { authenticateRequest } from '../_utils/auth';
+import { cleanKey, isHiddenObjectKey, isTrashKey } from '../_utils/keys';
 
-// Auth utilities (inlined)
-function verifyToken(token, secret) {
-  try {
-    const [data, sig] = token.split('.');
-    if (btoa(secret + data).slice(0, 16) !== sig) return false;
-    return JSON.parse(atob(data)).exp > Date.now();
-  } catch { return false; }
-}
-
-function authenticate(request, env) {
-  if (env?.DEV_BYPASS_AUTH === '1' || env?.DEV_BYPASS_AUTH === 'true') return true;
-  const auth = request.headers.get('Authorization');
-  if (!auth?.startsWith('Bearer ')) return false;
-  return verifyToken(auth.slice(7), env.JWT_SECRET || env.ADMIN_PASSWORD);
-}
+const META_KEY = '.config/image-meta.json';
 
 export async function onRequestGet(context) {
   const { request, env } = context;
 
-  if (!authenticate(request, env)) {
+  if (!(await authenticateRequest(request, env))) {
     return new Response('Unauthorized', { status: 401 });
   }
 
   const url = new URL(request.url);
-  const folder = url.searchParams.get('folder') || '';
+  const folder = cleanKey(url.searchParams.get('folder'));
   const cursor = url.searchParams.get('cursor') || undefined;
   const limit = Math.min(Math.max(Number(url.searchParams.get('limit')) || 50, 1), 100);
   const prefix = folder ? `${folder}/` : '';
@@ -35,11 +23,10 @@ export async function onRequestGet(context) {
   try {
     const listed = await env.R2.list({ prefix, cursor, limit: limit + 20 });
 
-    // Filter out .config/, .thumbs/, and trash/ (unless viewing trash)
+    // Filter out hidden objects and trash/ (unless viewing trash)
     const filtered = listed.objects
-      .filter(obj => !obj.key.startsWith('.config/'))
-      .filter(obj => !obj.key.startsWith('.thumbs/'))
-      .filter(obj => includeTrash || !obj.key.startsWith('trash/'));
+      .filter(obj => !isHiddenObjectKey(obj.key))
+      .filter(obj => includeTrash || !isTrashKey(obj.key));
 
     // Take only the requested limit
     const images = filtered.slice(0, limit).map(obj => ({
@@ -67,12 +54,12 @@ export async function onRequestGet(context) {
 export async function onRequestDelete(context) {
   const { request, env } = context;
 
-  if (!authenticate(request, env)) {
+  if (!(await authenticateRequest(request, env))) {
     return new Response('Unauthorized', { status: 401 });
   }
 
   const url = new URL(request.url);
-  const key = url.searchParams.get('key');
+  const key = cleanKey(url.searchParams.get('key'));
   if (!key) return new Response('Missing key', { status: 400 });
 
   try {
@@ -83,7 +70,6 @@ export async function onRequestDelete(context) {
 
     // Cascade delete metadata
     try {
-      const META_KEY = '.config/image-meta.json';
       const metaObj = await env.R2.get(META_KEY);
       if (metaObj) {
         const meta = JSON.parse(await metaObj.text());
@@ -138,21 +124,21 @@ export async function onRequestDelete(context) {
 export async function onRequestPost(context) {
   const { request, env } = context;
 
-  if (!authenticate(request, env)) {
+  if (!(await authenticateRequest(request, env))) {
     return new Response('Unauthorized', { status: 401 });
   }
 
   let key = '';
   try {
     const body = await request.json();
-    key = typeof body.key === 'string' ? body.key : '';
+    key = cleanKey(body.key);
   } catch {
     // ignore body parse error
   }
 
   if (!key) {
     const url = new URL(request.url);
-    key = url.searchParams.get('key') || '';
+    key = cleanKey(url.searchParams.get('key'));
   }
   if (!key) return new Response('Missing key', { status: 400 });
 
@@ -167,7 +153,6 @@ export async function onRequestPost(context) {
 
     // Cascade restore metadata
     try {
-      const META_KEY = '.config/image-meta.json';
       const metaObj = await env.R2.get(META_KEY);
       if (metaObj) {
         const meta = JSON.parse(await metaObj.text());

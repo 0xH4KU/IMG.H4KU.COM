@@ -1,5 +1,6 @@
 import { LogOut, Sun, Moon, Menu, X, Wrench, Link2 } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import { setStoredValue } from '../utils/storage';
 import styles from './Header.module.css';
 
 interface HeaderProps {
@@ -24,7 +25,7 @@ export function Header({ selectedDomain, onDomainChange, onLogout, onToggleSideb
   const toggleTheme = () => {
     const next = theme === 'light' ? 'dark' : 'light';
     document.documentElement.setAttribute('data-theme', next);
-    localStorage.setItem('theme', next);
+    setStoredValue('theme', next);
     setTheme(next);
   };
 

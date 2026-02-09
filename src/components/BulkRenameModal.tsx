@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { X } from 'lucide-react';
-import { getAuthToken } from '../contexts/AuthContext';
+import { apiRequest, ApiError } from '../utils/api';
 import styles from './BulkRenameModal.module.css';
 
 interface BulkRenameModalProps {
@@ -78,29 +78,20 @@ export function BulkRenameModal({ open, onClose, keys, onComplete }: BulkRenameM
       return;
     }
     setLoading(true);
-    const token = getAuthToken();
     try {
-      const res = await fetch('/api/images/rename', {
+      const data = await apiRequest<{ renamed: number; skipped: number }>('/api/images/rename', {
         method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ renames: renames.map(item => ({ from: item.from, to: item.to })) }),
+        body: { renames: renames.map(item => ({ from: item.from, to: item.to })) },
       });
-      if (res.ok) {
-        const data = await res.json();
-        onComplete();
-        if (data.skipped > 0) {
-          setError(`Renamed ${data.renamed}, skipped ${data.skipped}.`);
-        } else {
-          onClose();
-        }
+
+      onComplete();
+      if (data.skipped > 0) {
+        setError(`Renamed ${data.renamed}, skipped ${data.skipped}.`);
       } else {
-        setError(await res.text());
+        onClose();
       }
-    } catch {
-      setError('Failed to rename files.');
+    } catch (error) {
+      setError(error instanceof ApiError ? error.message : 'Failed to rename files.');
     } finally {
       setLoading(false);
     }

@@ -1,49 +1,21 @@
 import { getHashMeta, saveHashMeta } from '../../_utils/meta';
 import { moveToTrash, restoreFromTrash } from '../../_utils/trash';
 import { logError } from '../../_utils/log';
-
-// Auth utilities (inlined)
-function verifyToken(token, secret) {
-  try {
-    const [data, sig] = token.split('.');
-    if (btoa(secret + data).slice(0, 16) !== sig) return false;
-    return JSON.parse(atob(data)).exp > Date.now();
-  } catch { return false; }
-}
-
-function authenticate(request, env) {
-  if (env?.DEV_BYPASS_AUTH === '1' || env?.DEV_BYPASS_AUTH === 'true') return true;
-  const auth = request.headers.get('Authorization');
-  if (!auth?.startsWith('Bearer ')) return false;
-  return verifyToken(auth.slice(7), env.JWT_SECRET || env.ADMIN_PASSWORD);
-}
-
-const META_KEY = '.config/image-meta.json';
-
-async function getMeta(env) {
-  try {
-    const obj = await env.R2.get(META_KEY);
-    if (!obj) return { version: 1, updatedAt: new Date().toISOString(), images: {} };
-    return JSON.parse(await obj.text());
-  } catch {
-    return { version: 1, updatedAt: new Date().toISOString(), images: {} };
-  }
-}
-
-async function saveMeta(env, meta) {
-  meta.updatedAt = new Date().toISOString();
-  await env.R2.put(META_KEY, JSON.stringify(meta));
-}
+import { authenticateRequest } from '../../_utils/auth';
+import { cleanKey } from '../../_utils/keys';
+import { getImageMeta, saveImageMeta } from '../../_utils/meta';
 
 export async function onRequestPost(context) {
   const { request, env } = context;
-  if (!authenticate(request, env)) {
+  if (!(await authenticateRequest(request, env))) {
     return new Response('Unauthorized', { status: 401 });
   }
 
   try {
     const body = await request.json();
-    const keys = Array.isArray(body.keys) ? body.keys.filter(k => typeof k === 'string') : [];
+    const keys = Array.isArray(body.keys)
+      ? body.keys.map(cleanKey).filter(Boolean)
+      : [];
     const action = body.action === 'restore' ? 'restore' : 'delete';
     if (keys.length === 0) {
       return new Response('Missing keys', { status: 400 });
@@ -62,7 +34,7 @@ export async function onRequestPost(context) {
       results.push(result);
     }
 
-    const meta = await getMeta(env);
+    const meta = await getImageMeta(env);
     let removed = 0;
     let moved = 0;
     for (const result of results) {
@@ -75,7 +47,7 @@ export async function onRequestPost(context) {
       }
       delete meta.images[result.from];
     }
-    if (removed > 0 || moved > 0) await saveMeta(env, meta);
+    if (removed > 0 || moved > 0) await saveImageMeta(env, meta);
 
     try {
       const hashMeta = await getHashMeta(env);

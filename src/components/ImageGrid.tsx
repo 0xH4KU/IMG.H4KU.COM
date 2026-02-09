@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef, MouseEvent as ReactMouseEvent } from 'react';
 import { Copy, Check, RefreshCw, Star, MoreHorizontal, Trash2, Download, Tags, Share2, FileText, Code, Square, CheckSquare, Pencil, Folder, RotateCcw, Loader2 } from 'lucide-react';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { getAuthToken } from '../contexts/AuthContext';
 import { useImageMeta, TagColor, TAG_COLORS } from '../contexts/ImageMetaContext';
 import { TagDots } from './TagDots';
 import { ImageContextMenu } from './ImageContextMenu';
@@ -9,6 +8,10 @@ import { ViewToggle, ViewMode } from './ViewToggle';
 import { GroupSelector, GroupBy } from './GroupSelector';
 import { ImageFilters } from '../types';
 import { downloadZip } from '../utils/zip';
+import { apiRequest, ApiError } from '../utils/api';
+import { DELIVERY_HOSTS, shouldUseFileProxy } from '../utils/url';
+import { formatBytes, formatDateShort } from '../utils/format';
+import { useTransientMessage } from '../hooks/useTransientMessage';
 import styles from './ImageGrid.module.css';
 
 interface ImageItem {
@@ -30,13 +33,7 @@ interface ImageGridProps {
   onBulkMove: (items: string[]) => void;
 }
 
-const DOMAINS = {
-  h4ku: 'https://img.h4ku.com',
-  lum: 'https://img.lum.bio',
-};
-
-const useFileProxy = window.location.hostname === 'localhost' ||
-  window.location.hostname.endsWith('.pages.dev');
+const useFileProxy = shouldUseFileProxy(window.location.hostname);
 
 const PAGE_SIZE = 50;
 const CARD_HEIGHT = 260;
@@ -81,7 +78,6 @@ export function ImageGrid({ folder, domain, refreshKey, onRefresh, activeTag, sh
   const [loadingMore, setLoadingMore] = useState(false);
   const [cursor, setCursor] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(true);
-  const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [groupBy, setGroupBy] = useState<GroupBy>('none');
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; key: string } | null>(null);
@@ -89,9 +85,12 @@ export function ImageGrid({ folder, domain, refreshKey, onRefresh, activeTag, sh
   const [tagMenu, setTagMenu] = useState<{ mode: 'add' | 'remove'; x: number; y: number } | null>(null);
   const [downloading, setDownloading] = useState(false);
   const [columns, setColumns] = useState(4);
+  const [gridWidth, setGridWidth] = useState(0);
   const tagMenuRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const loadMoreRef = useRef<HTMLDivElement>(null);
+  const { message: actionError, show: showError } = useTransientMessage(2400);
+  const { message: copiedKey, show: showCopiedKey } = useTransientMessage(2000);
 
   const { getTags, isFavorite, toggleTag, toggleFavorite, refreshMeta } = useImageMeta();
   const isTrashView = folder.toLowerCase() === 'trash';
@@ -109,28 +108,24 @@ export function ImageGrid({ folder, domain, refreshKey, onRefresh, activeTag, sh
       setHasMore(true);
     }
 
-    const token = getAuthToken();
     const params = new URLSearchParams();
     if (folder) params.set('folder', folder);
     params.set('limit', String(PAGE_SIZE));
     if (append && cursor) params.set('cursor', cursor);
 
     try {
-      const res = await fetch(`/api/images?${params}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (append) {
-          setImages(prev => [...prev, ...(data.images || [])]);
-        } else {
-          setImages(data.images || []);
-        }
-        setCursor(data.cursor || null);
-        setHasMore(data.hasMore ?? false);
+      const data = await apiRequest<{ images?: ImageItem[]; cursor?: string | null; hasMore?: boolean }>(`/api/images?${params}`);
+      if (append) {
+        setImages(prev => [...prev, ...(data.images || [])]);
+      } else {
+        setImages(data.images || []);
       }
-    } catch {
-      // Ignore errors
+      setCursor(data.cursor || null);
+      setHasMore(data.hasMore ?? false);
+    } catch (error) {
+      if (!append) {
+        showError(error instanceof ApiError ? error.message : 'Failed to load images');
+      }
     } finally {
       setLoading(false);
       setLoadingMore(false);
@@ -184,6 +179,7 @@ export function ImageGrid({ folder, domain, refreshKey, onRefresh, activeTag, sh
     const updateColumns = () => {
       if (scrollRef.current) {
         const width = scrollRef.current.offsetWidth;
+        setGridWidth(width);
         setColumns(Math.max(2, Math.floor(width / 192)));
       }
     };
@@ -192,15 +188,23 @@ export function ImageGrid({ folder, domain, refreshKey, onRefresh, activeTag, sh
     return () => window.removeEventListener('resize', updateColumns);
   }, []);
 
+  const getGridRowHeight = useCallback(() => {
+    if (!gridWidth || columns <= 0) return CARD_HEIGHT;
+    const gap = 12;
+    const cellWidth = Math.max(160, (gridWidth - gap * (columns - 1)) / columns);
+    const cardMetaHeight = 96;
+    return Math.round(cellWidth + cardMetaHeight);
+  }, [columns, gridWidth]);
+
   const getImageUrl = (key: string) =>
-    useFileProxy ? `/api/file?key=${encodeURIComponent(key)}` : `${DOMAINS[domain]}/${key}`;
+    useFileProxy ? `/api/file?key=${encodeURIComponent(key)}` : `${DELIVERY_HOSTS[domain]}/${key}`;
 
   const getThumbnailUrl = (key: string) => {
     const thumbKey = `.thumbs/${key}`;
-    return useFileProxy ? `/api/file?key=${encodeURIComponent(thumbKey)}` : `${DOMAINS[domain]}/${thumbKey}`;
+    return useFileProxy ? `/api/file?key=${encodeURIComponent(thumbKey)}` : `${DELIVERY_HOSTS[domain]}/${thumbKey}`;
   };
 
-  const getCopyUrl = (key: string) => `${DOMAINS[domain]}/${key}`;
+  const getCopyUrl = (key: string) => `${DELIVERY_HOSTS[domain]}/${key}`;
 
   const getAltText = (key: string) => {
     const name = key.split('/').pop() || key;
@@ -216,8 +220,7 @@ export function ImageGrid({ folder, domain, refreshKey, onRefresh, activeTag, sh
   const copyLink = async (key: string) => {
     const url = getCopyUrl(key);
     await navigator.clipboard.writeText(url);
-    setCopiedKey(key);
-    setTimeout(() => setCopiedKey(null), 2000);
+    showCopiedKey(key);
   };
 
   const copyMarkdown = async (key: string, promptAlt = true) => {
@@ -240,36 +243,29 @@ export function ImageGrid({ folder, domain, refreshKey, onRefresh, activeTag, sh
   const deleteImage = async (key: string) => {
     const message = isTrashView ? 'Delete this image permanently?' : 'Move this image to trash?';
     if (!confirm(message)) return;
-    const token = getAuthToken();
     try {
-      const res = await fetch(`/api/images?key=${encodeURIComponent(key)}`, {
+      await apiRequest(`/api/images?key=${encodeURIComponent(key)}`, {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
       });
-      if (res.ok) {
-        onRefresh();
-        refreshMeta();
-      }
-    } catch { /* ignore */ }
+      onRefresh();
+      refreshMeta();
+    } catch (error) {
+      showError(error instanceof ApiError ? error.message : 'Failed to delete image');
+    }
   };
 
   const restoreImage = async (key: string) => {
     if (!confirm('Restore this image to its original folder?')) return;
-    const token = getAuthToken();
     try {
-      const res = await fetch('/api/images', {
+      await apiRequest('/api/images', {
         method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ key }),
+        body: { key },
       });
-      if (res.ok) {
-        onRefresh();
-        refreshMeta();
-      }
-    } catch { /* ignore */ }
+      onRefresh();
+      refreshMeta();
+    } catch (error) {
+      showError(error instanceof ApiError ? error.message : 'Failed to restore image');
+    }
   };
 
   const toggleSelect = (key: string) => {
@@ -298,69 +294,48 @@ export function ImageGrid({ folder, domain, refreshKey, onRefresh, activeTag, sh
       ? `Delete ${selectedKeys.size} selected image(s) permanently?`
       : `Move ${selectedKeys.size} selected image(s) to trash?`;
     if (!confirm(message)) return;
-    const token = getAuthToken();
     try {
-      const res = await fetch('/api/images/batch', {
+      await apiRequest('/api/images/batch', {
         method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ keys: Array.from(selectedKeys) }),
+        body: { keys: Array.from(selectedKeys) },
       });
-      if (res.ok) {
-        clearSelection();
-        onRefresh();
-        refreshMeta();
-      }
-    } catch {
-      // Ignore errors
+      clearSelection();
+      onRefresh();
+      refreshMeta();
+    } catch (error) {
+      showError(error instanceof ApiError ? error.message : 'Failed to delete selected images');
     }
   };
 
   const restoreSelected = async () => {
     if (selectedKeys.size === 0) return;
     if (!confirm(`Restore ${selectedKeys.size} selected image(s) to their original folders?`)) return;
-    const token = getAuthToken();
     try {
-      const res = await fetch('/api/images/batch', {
+      await apiRequest('/api/images/batch', {
         method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ keys: Array.from(selectedKeys), action: 'restore' }),
+        body: { keys: Array.from(selectedKeys), action: 'restore' },
       });
-      if (res.ok) {
-        clearSelection();
-        onRefresh();
-        refreshMeta();
-      }
-    } catch {
-      // Ignore errors
+      clearSelection();
+      onRefresh();
+      refreshMeta();
+    } catch (error) {
+      showError(error instanceof ApiError ? error.message : 'Failed to restore selected images');
     }
   };
 
   const applyBulkTag = async (tag: TagColor, mode: 'add' | 'remove') => {
-    const token = getAuthToken();
     try {
-      const res = await fetch('/api/metadata/batch', {
+      await apiRequest('/api/metadata/batch', {
         method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+        body: {
           keys: Array.from(selectedKeys),
           addTags: mode === 'add' ? [tag] : [],
           removeTags: mode === 'remove' ? [tag] : [],
-        }),
+        },
       });
-      if (res.ok) {
-        refreshMeta();
-      }
-    } catch {
-      // Ignore errors
+      refreshMeta();
+    } catch (error) {
+      showError(error instanceof ApiError ? error.message : 'Failed to update tags');
     }
   };
 
@@ -372,6 +347,9 @@ export function ImageGrid({ folder, domain, refreshKey, onRefresh, activeTag, sh
         name: 'images',
         keys: Array.from(selectedKeys),
         getUrl: getImageUrl,
+        onProgress: (_finished, _total) => {
+          // reserved for future UI progress indicator
+        },
       });
     } finally {
       setDownloading(false);
@@ -399,17 +377,6 @@ export function ImageGrid({ folder, domain, refreshKey, onRefresh, activeTag, sh
   const openTagMenu = (mode: 'add' | 'remove', event: ReactMouseEvent<HTMLButtonElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
     setTagMenu({ mode, x: rect.left, y: rect.bottom + 6 });
-  };
-
-  const formatSize = (bytes: number) => {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  };
-
-  const formatDate = (iso: string) => {
-    const d = new Date(iso);
-    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
   };
 
   const getFolderName = (key: string) => {
@@ -549,7 +516,7 @@ export function ImageGrid({ folder, domain, refreshKey, onRefresh, activeTag, sh
     estimateSize: (index) => {
       const item = virtualItems[index];
       if (item.type === 'header') return GROUP_HEADER_HEIGHT;
-      return viewMode === 'grid' ? CARD_HEIGHT : LIST_ITEM_HEIGHT;
+      return viewMode === 'grid' ? getGridRowHeight() : LIST_ITEM_HEIGHT;
     },
     overscan: 5,
   });
@@ -612,7 +579,7 @@ export function ImageGrid({ folder, domain, refreshKey, onRefresh, activeTag, sh
           <div className={styles.meta}>
             <TagDots tags={imgTags} />
             {folderName && <span className={styles.folderBadge}>{folderName}</span>}
-            <span className={styles.size}>{formatSize(img.size)}</span>
+            <span className={styles.size}>{formatBytes(img.size)}</span>
           </div>
         </div>
         <div className={styles.actions}>
@@ -664,8 +631,8 @@ export function ImageGrid({ folder, domain, refreshKey, onRefresh, activeTag, sh
           <div className={styles.listMeta}>
             <TagDots tags={imgTags} />
             {folderName && <span className={styles.folderBadge}>{folderName}</span>}
-            <span>{formatSize(img.size)}</span>
-            <span>{formatDate(img.uploaded)}</span>
+            <span>{formatBytes(img.size)}</span>
+            <span>{formatDateShort(img.uploaded)}</span>
           </div>
         </div>
         <div className={styles.listActions}>
@@ -784,6 +751,10 @@ export function ImageGrid({ folder, domain, refreshKey, onRefresh, activeTag, sh
         </div>
       )}
 
+      {actionError && (
+        <div className={styles.inlineError}>{actionError}</div>
+      )}
+
       <div ref={scrollRef} className={styles.scrollArea}>
         <div
           style={{
@@ -829,7 +800,10 @@ export function ImageGrid({ folder, domain, refreshKey, onRefresh, activeTag, sh
                 }}
               >
                 {viewMode === 'grid' ? (
-                  <div className={styles.grid}>
+                  <div
+                    className={styles.grid}
+                    style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
+                  >
                     {item.images.map(renderCard)}
                   </div>
                 ) : (

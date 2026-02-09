@@ -185,6 +185,16 @@
   padding: 20px;
 }
 
+.inlineError {
+  margin-bottom: 8px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid color-mix(in srgb, var(--color-error) 35%, var(--color-border));
+  background: color-mix(in srgb, var(--color-error) 12%, var(--color-surface));
+  color: var(--color-text);
+  font-size: 0.75rem;
+}
+
 .scrollArea {
   flex: 1;
   overflow-y: auto;

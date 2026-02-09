@@ -1,17 +1,6 @@
 import { logError } from '../../_utils/log';
-import { listAllObjects } from '../../_utils/meta';
-
-const SHARE_KEY = '.config/share-meta.json';
-
-async function getShareMeta(env) {
-  try {
-    const obj = await env.R2.get(SHARE_KEY);
-    if (!obj) return { version: 1, updatedAt: new Date().toISOString(), shares: {} };
-    return JSON.parse(await obj.text());
-  } catch {
-    return { version: 1, updatedAt: new Date().toISOString(), shares: {} };
-  }
-}
+import { listAllObjects, getShareMeta } from '../../_utils/meta';
+import { cleanKey, isHiddenObjectKey } from '../../_utils/keys';
 
 function bytesToBase64(bytes) {
   let binary = '';
@@ -52,15 +41,20 @@ async function resolveShareKeys(env, share) {
     const objects = await listAllObjects(env, prefix);
     const keys = objects
       .map(obj => obj.key)
-      .filter(key => !key.startsWith('.config/'));
+      .filter(key => !isHiddenObjectKey(key));
     return Array.from(new Set(keys));
   }
-  return Array.isArray(share?.items) ? share.items : [];
+  if (!Array.isArray(share?.items)) return [];
+  return Array.from(new Set(share.items.map(cleanKey).filter(Boolean)));
 }
 
 export async function onRequestGet(context) {
   const { env, params } = context;
-  const id = params.id;
+  const id = cleanKey(params.id);
+
+  if (!id) {
+    return new Response('Not found', { status: 404 });
+  }
 
   try {
     const meta = await getShareMeta(env);
@@ -87,7 +81,11 @@ export async function onRequestGet(context) {
 
 export async function onRequestPost(context) {
   const { request, env, params } = context;
-  const id = params.id;
+  const id = cleanKey(params.id);
+
+  if (!id) {
+    return new Response('Not found', { status: 404 });
+  }
 
   try {
     const meta = await getShareMeta(env);
@@ -95,7 +93,8 @@ export async function onRequestPost(context) {
     if (!share) return new Response('Not found', { status: 404 });
 
     if (!share.passwordHash) {
-      const items = await buildItems(env, share.items || []);
+      const keys = await resolveShareKeys(env, share);
+      const items = await buildItems(env, keys);
       return Response.json({ share: publicShare(share), items });
     }
 

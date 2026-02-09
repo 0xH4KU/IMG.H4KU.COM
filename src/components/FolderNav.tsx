@@ -1,8 +1,15 @@
 import { useState, useEffect, useRef, useLayoutEffect, MouseEvent as ReactMouseEvent } from 'react';
 import { Folder, FolderPlus, Home, Star, MoreHorizontal, Pencil, Merge, Trash2, Share2, Clock } from 'lucide-react';
-import { getAuthToken } from '../contexts/AuthContext';
 import { useImageMeta, TAG_COLORS, TagColor } from '../contexts/ImageMetaContext';
+import { apiRequest, ApiError } from '../utils/api';
+import { useTransientMessage } from '../hooks/useTransientMessage';
 import styles from './FolderNav.module.css';
+
+interface FoldersResponse {
+  folders?: string[];
+  stats?: Record<string, { count: number; size: number }>;
+  total?: { count: number; size: number } | null;
+}
 
 interface FolderNavProps {
   currentFolder: string;
@@ -33,6 +40,7 @@ export function FolderNav({
   const [menu, setMenu] = useState<{ folder: string; x: number; y: number } | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const navRef = useRef<HTMLElement>(null);
+  const { message: actionError, show: showActionError } = useTransientMessage(2400);
 
   const { getFavoriteCount, getTagCount } = useImageMeta();
 
@@ -41,17 +49,11 @@ export function FolderNav({
   }, [refreshKey]);
 
   const fetchFolders = async () => {
-    const token = getAuthToken();
     try {
-      const res = await fetch('/api/folders?stats=1', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setFolders((data.folders || []) as string[]);
-        setFolderStats(data.stats || {});
-        setTotalStats(data.total || null);
-      }
+      const data = await apiRequest<FoldersResponse>('/api/folders?stats=1');
+      setFolders((data.folders || []) as string[]);
+      setFolderStats(data.stats || {});
+      setTotalStats(data.total || null);
     } catch {
       // Ignore errors
     }
@@ -62,22 +64,15 @@ export function FolderNav({
     if (!trimmed) return;
     const folderName = trimmed.replace(/[^a-zA-Z0-9-_]/g, '-');
     if (!folders.includes(folderName)) {
-      const token = getAuthToken();
       try {
-        const res = await fetch('/api/folders', {
+        await apiRequest('/api/folders', {
           method: 'POST',
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ name: folderName }),
+          body: { name: folderName },
         });
-        if (res.ok) {
-          await fetchFolders();
-          onFolderChange(folderName);
-        }
-      } catch {
-        // Ignore errors
+        await fetchFolders();
+        onFolderChange(folderName);
+      } catch (error) {
+        showActionError(error instanceof ApiError ? error.message : 'Failed to create folder');
       }
     }
     setNewFolder('');
@@ -181,24 +176,15 @@ export function FolderNav({
     if (!next) return;
     const nextName = next.trim().replace(/[^a-zA-Z0-9-_]/g, '-');
     if (!nextName || nextName === folder) return;
-    const token = getAuthToken();
     try {
-      const res = await fetch('/api/folders', {
+      await apiRequest('/api/folders', {
         method: 'PUT',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ from: folder, to: nextName, mode: 'rename' }),
+        body: { from: folder, to: nextName, mode: 'rename' },
       });
-      if (res.ok) {
-        await fetchFolders();
-        if (currentFolder === folder) onFolderChange(nextName);
-      } else {
-        alert(await res.text());
-      }
-    } catch {
-      // Ignore errors
+      await fetchFolders();
+      if (currentFolder === folder) onFolderChange(nextName);
+    } catch (error) {
+      alert(error instanceof ApiError ? error.message : 'Failed to rename folder');
     }
   };
 
@@ -207,43 +193,28 @@ export function FolderNav({
     if (!target) return;
     const targetName = target.trim().replace(/[^a-zA-Z0-9-_]/g, '-');
     if (!targetName || targetName === folder) return;
-    const token = getAuthToken();
     try {
-      const res = await fetch('/api/folders', {
+      await apiRequest('/api/folders', {
         method: 'PUT',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ from: folder, to: targetName, mode: 'merge' }),
+        body: { from: folder, to: targetName, mode: 'merge' },
       });
-      if (res.ok) {
-        await fetchFolders();
-        if (currentFolder === folder) onFolderChange(targetName);
-      } else {
-        alert(await res.text());
-      }
-    } catch {
-      // Ignore errors
+      await fetchFolders();
+      if (currentFolder === folder) onFolderChange(targetName);
+    } catch (error) {
+      alert(error instanceof ApiError ? error.message : 'Failed to merge folder');
     }
   };
 
   const deleteFolder = async (folder: string) => {
     if (!confirm(`Delete folder "${folder}" and all images inside?`)) return;
-    const token = getAuthToken();
     try {
-      const res = await fetch(`/api/folders?name=${encodeURIComponent(folder)}`, {
+      await apiRequest(`/api/folders?name=${encodeURIComponent(folder)}`, {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
       });
-      if (res.ok) {
-        await fetchFolders();
-        if (currentFolder === folder) onFolderChange('');
-      } else {
-        alert(await res.text());
-      }
-    } catch {
-      // Ignore errors
+      await fetchFolders();
+      if (currentFolder === folder) onFolderChange('');
+    } catch (error) {
+      alert(error instanceof ApiError ? error.message : 'Failed to delete folder');
     }
   };
 
@@ -437,6 +408,10 @@ export function FolderNav({
             <span>Delete</span>
           </button>
         </div>
+      )}
+
+      {actionError && (
+        <div className={styles.actionError}>{actionError}</div>
       )}
     </nav>
   );

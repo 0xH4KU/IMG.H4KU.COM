@@ -1,21 +1,7 @@
 import { listAllObjects, getHashMeta, saveHashMeta, getMaintenanceMeta, saveMaintenanceMeta } from '../../_utils/meta';
 import { logError } from '../../_utils/log';
-
-// Auth utilities (inlined)
-function verifyToken(token, secret) {
-  try {
-    const [data, sig] = token.split('.');
-    if (btoa(secret + data).slice(0, 16) !== sig) return false;
-    return JSON.parse(atob(data)).exp > Date.now();
-  } catch { return false; }
-}
-
-function authenticate(request, env) {
-  if (env?.DEV_BYPASS_AUTH === '1' || env?.DEV_BYPASS_AUTH === 'true') return true;
-  const auth = request.headers.get('Authorization');
-  if (!auth?.startsWith('Bearer ')) return false;
-  return verifyToken(auth.slice(7), env.JWT_SECRET || env.ADMIN_PASSWORD);
-}
+import { authenticateRequest } from '../../_utils/auth';
+import { isReservedKey } from '../../_utils/keys';
 
 function bytesToHex(bytes) {
   return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
@@ -29,7 +15,7 @@ function parseNumber(value, fallback) {
 export async function onRequestGet(context) {
   const { request, env } = context;
 
-  if (!authenticate(request, env)) {
+  if (!(await authenticateRequest(request, env))) {
     return new Response('Unauthorized', { status: 401 });
   }
 
@@ -46,7 +32,7 @@ export async function onRequestGet(context) {
       const objects = await listAllObjects(env);
       for (const obj of objects) {
         if (computed >= limit) break;
-        if (obj.key.startsWith('.config/')) continue;
+        if (isReservedKey(obj.key)) continue;
         if (hashMeta.hashes[obj.key]) continue;
         const source = await env.R2.get(obj.key);
         if (!source) continue;

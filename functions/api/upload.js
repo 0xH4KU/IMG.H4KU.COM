@@ -1,21 +1,7 @@
 import { getHashMeta, saveHashMeta } from '../_utils/meta';
 import { logError } from '../_utils/log';
-
-// Auth utilities (inlined)
-function verifyToken(token, secret) {
-  try {
-    const [data, sig] = token.split('.');
-    if (btoa(secret + data).slice(0, 16) !== sig) return false;
-    return JSON.parse(atob(data)).exp > Date.now();
-  } catch { return false; }
-}
-
-function authenticate(request, env) {
-  if (env?.DEV_BYPASS_AUTH === '1' || env?.DEV_BYPASS_AUTH === 'true') return true;
-  const auth = request.headers.get('Authorization');
-  if (!auth?.startsWith('Bearer ')) return false;
-  return verifyToken(auth.slice(7), env.JWT_SECRET || env.ADMIN_PASSWORD);
-}
+import { authenticateRequest } from '../_utils/auth';
+import { normalizeFolderPath, normalizeFileName, ensureSafeUploadKey } from '../_utils/keys';
 
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/avif', 'image/svg+xml'];
 const MAX_SIZE = 50 * 1024 * 1024;
@@ -27,17 +13,19 @@ function bytesToHex(bytes) {
 export async function onRequestPost(context) {
   const { request, env } = context;
 
-  if (!authenticate(request, env)) {
+  if (!(await authenticateRequest(request, env))) {
     return new Response('Unauthorized', { status: 401 });
   }
 
   try {
     const formData = await request.formData();
     const file = formData.get('file');
-    const folder = formData.get('folder') || '';
-    const customKey = formData.get('key') || '';
+    const folder = normalizeFolderPath(formData.get('folder') || '');
+    const customKey = String(formData.get('key') || '');
 
-    if (!file) return new Response('No file provided', { status: 400 });
+    if (!(file instanceof File)) {
+      return new Response('No file provided', { status: 400 });
+    }
 
     // Thumbnails have relaxed type check (allow webp from canvas)
     const isThumbnail = customKey && customKey.startsWith('.thumbs/');
@@ -48,10 +36,14 @@ export async function onRequestPost(context) {
 
     let key;
     if (isThumbnail) {
-      key = customKey;
+      const keyCheck = ensureSafeUploadKey(customKey, { allowThumbs: true });
+      if (!keyCheck.ok) {
+        return new Response(keyCheck.reason, { status: 400 });
+      }
+      key = keyCheck.key;
     } else {
       const timestamp = Date.now().toString(36);
-      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const safeName = normalizeFileName(file.name) || `${timestamp}.bin`;
       key = folder ? `${folder}/${timestamp}-${safeName}` : `${timestamp}-${safeName}`;
     }
 

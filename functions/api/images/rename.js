@@ -1,25 +1,7 @@
 import { getImageMeta, saveImageMeta, getHashMeta, saveHashMeta, getShareMeta, saveShareMeta, getFolderMeta, saveFolderMeta } from '../../_utils/meta';
 import { logError } from '../../_utils/log';
-
-// Auth utilities (inlined)
-function verifyToken(token, secret) {
-  try {
-    const [data, sig] = token.split('.');
-    if (btoa(secret + data).slice(0, 16) !== sig) return false;
-    return JSON.parse(atob(data)).exp > Date.now();
-  } catch { return false; }
-}
-
-function authenticate(request, env) {
-  if (env?.DEV_BYPASS_AUTH === '1' || env?.DEV_BYPASS_AUTH === 'true') return true;
-  const auth = request.headers.get('Authorization');
-  if (!auth?.startsWith('Bearer ')) return false;
-  return verifyToken(auth.slice(7), env.JWT_SECRET || env.ADMIN_PASSWORD);
-}
-
-function cleanKey(key) {
-  return (key || '').trim().replace(/^\/+/, '');
-}
+import { authenticateRequest } from '../../_utils/auth';
+import { cleanKey, ensureSafeObjectKey } from '../../_utils/keys';
 
 function getFolderName(key) {
   const parts = key.split('/');
@@ -29,7 +11,7 @@ function getFolderName(key) {
 export async function onRequestPost(context) {
   const { request, env } = context;
 
-  if (!authenticate(request, env)) {
+  if (!(await authenticateRequest(request, env))) {
     return new Response('Unauthorized', { status: 401 });
   }
 
@@ -54,8 +36,10 @@ export async function onRequestPost(context) {
         errors.push({ from: pair.from, to: pair.to, error: 'Same source and target' });
         continue;
       }
-      if (pair.from.startsWith('.config/') || pair.to.startsWith('.config/')) {
-        errors.push({ from: pair.from, to: pair.to, error: 'Invalid target' });
+      const fromValidity = ensureSafeObjectKey(pair.from);
+      const toValidity = ensureSafeObjectKey(pair.to);
+      if (!fromValidity.ok || !toValidity.ok) {
+        errors.push({ from: pair.from, to: pair.to, error: 'Invalid key path' });
         continue;
       }
       if (seenTargets.has(pair.to)) {

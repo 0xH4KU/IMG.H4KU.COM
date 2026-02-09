@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
-import { getAuthToken } from '../contexts/AuthContext';
+import { apiRequest, ApiError } from '../utils/api';
 import styles from './BulkMoveModal.module.css';
 
 interface BulkMoveModalProps {
@@ -21,15 +21,9 @@ export function BulkMoveModal({ open, onClose, keys, onComplete }: BulkMoveModal
     setTargetFolder('');
     setError('');
     const fetchFolders = async () => {
-      const token = getAuthToken();
       try {
-        const res = await fetch('/api/folders', {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setFolders(Array.isArray(data.folders) ? data.folders : []);
-        }
+        const data = await apiRequest<{ folders?: string[] }>('/api/folders');
+        setFolders(Array.isArray(data.folders) ? data.folders : []);
       } catch {
         // Ignore
       }
@@ -43,29 +37,20 @@ export function BulkMoveModal({ open, onClose, keys, onComplete }: BulkMoveModal
     if (keys.length === 0) return;
     setLoading(true);
     setError('');
-    const token = getAuthToken();
     try {
-      const res = await fetch('/api/images/move', {
+      const data = await apiRequest<{ moved: number; skipped: number }>('/api/images/move', {
         method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ keys, targetFolder }),
+        body: { keys, targetFolder },
       });
-      if (res.ok) {
-        const data = await res.json();
-        onComplete();
-        if (data.skipped > 0) {
-          setError(`Moved ${data.moved}, skipped ${data.skipped}.`);
-        } else {
-          onClose();
-        }
+
+      onComplete();
+      if (data.skipped > 0) {
+        setError(`Moved ${data.moved}, skipped ${data.skipped}.`);
       } else {
-        setError(await res.text());
+        onClose();
       }
-    } catch {
-      setError('Failed to move files.');
+    } catch (error) {
+      setError(error instanceof ApiError ? error.message : 'Failed to move files.');
     } finally {
       setLoading(false);
     }

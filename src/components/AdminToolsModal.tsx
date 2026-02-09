@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { X, RefreshCw, Download, Trash2 } from 'lucide-react';
-import { getAuthToken } from '../contexts/AuthContext';
+import { apiRequest, ApiError } from '../utils/api';
+import { formatBytes } from '../utils/format';
 import styles from './AdminToolsModal.module.css';
 
 interface AdminToolsModalProps {
@@ -31,13 +32,6 @@ interface LogEntry {
   detail?: string;
 }
 
-function formatBytes(bytes: number) {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
-}
-
 export function AdminToolsModal({ open, onClose }: AdminToolsModalProps) {
   const [usage, setUsage] = useState<UsageResponse | null>(null);
   const [usageLoading, setUsageLoading] = useState(false);
@@ -49,15 +43,8 @@ export function AdminToolsModal({ open, onClose }: AdminToolsModalProps) {
   const fetchUsage = async () => {
     setUsageLoading(true);
     try {
-      const token = getAuthToken();
-      if (!token) return;
-      const res = await fetch('/api/monitoring/r2', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setUsage(data);
-      }
+      const data = await apiRequest<UsageResponse>('/api/monitoring/r2');
+      setUsage(data);
     } catch {
       // Ignore
     } finally {
@@ -68,15 +55,8 @@ export function AdminToolsModal({ open, onClose }: AdminToolsModalProps) {
   const fetchLogs = async () => {
     setLogLoading(true);
     try {
-      const token = getAuthToken();
-      if (!token) return;
-      const res = await fetch('/api/logs?limit=50', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setLogs(Array.isArray(data.logs) ? data.logs : []);
-      }
+      const data = await apiRequest<{ logs?: LogEntry[] }>('/api/logs?limit=50');
+      setLogs(Array.isArray(data.logs) ? data.logs : []);
     } catch {
       // Ignore
     } finally {
@@ -104,82 +84,72 @@ export function AdminToolsModal({ open, onClose }: AdminToolsModalProps) {
   };
 
   const runTempCleanup = () => runAction('temp', async () => {
-    const token = getAuthToken();
-    if (!token) return;
-    const res = await fetch('/api/maintenance/temp?days=30', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    const text = res.ok ? JSON.stringify(await res.json(), null, 2) : await res.text();
-    setResult(text);
-    fetchUsage();
+    try {
+      const data = await apiRequest('/api/maintenance/temp?days=30', {
+        method: 'POST',
+      });
+      setResult(JSON.stringify(data, null, 2));
+      fetchUsage();
+    } catch (error) {
+      setResult(error instanceof ApiError ? error.message : 'Failed to run temp cleanup');
+    }
   });
 
   const runOrphanCleanup = () => runAction('orphans', async () => {
-    const token = getAuthToken();
-    if (!token) return;
-    const res = await fetch('/api/maintenance/orphans', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    const text = res.ok ? JSON.stringify(await res.json(), null, 2) : await res.text();
-    setResult(text);
+    try {
+      const data = await apiRequest('/api/maintenance/orphans', {
+        method: 'POST',
+      });
+      setResult(JSON.stringify(data, null, 2));
+    } catch (error) {
+      setResult(error instanceof ApiError ? error.message : 'Failed to cleanup orphans');
+    }
   });
 
   const runBrokenLinks = () => runAction('broken', async () => {
-    const token = getAuthToken();
-    if (!token) return;
-    const res = await fetch('/api/maintenance/broken-links', {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    const text = res.ok ? JSON.stringify(await res.json(), null, 2) : await res.text();
-    setResult(text);
+    try {
+      const data = await apiRequest('/api/maintenance/broken-links');
+      setResult(JSON.stringify(data, null, 2));
+    } catch (error) {
+      setResult(error instanceof ApiError ? error.message : 'Failed to check broken links');
+    }
   });
 
   const runDuplicates = () => runAction('duplicates', async () => {
-    const token = getAuthToken();
-    if (!token) return;
-    const res = await fetch('/api/maintenance/duplicates?compute=1&limit=200', {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    const text = res.ok ? JSON.stringify(await res.json(), null, 2) : await res.text();
-    setResult(text);
+    try {
+      const data = await apiRequest('/api/maintenance/duplicates?compute=1&limit=200');
+      setResult(JSON.stringify(data, null, 2));
+    } catch (error) {
+      setResult(error instanceof ApiError ? error.message : 'Failed to scan duplicates');
+    }
   });
 
   const downloadExport = () => runAction('export', async () => {
-    const token = getAuthToken();
-    if (!token) return;
-    const res = await fetch('/api/maintenance/export', {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!res.ok) {
-      setResult(await res.text());
-      return;
+    try {
+      const blob = await apiRequest<Blob>('/api/maintenance/export', {
+        responseType: 'blob',
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'img-h4ku-backup.json';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      setResult('Export downloaded.');
+    } catch (error) {
+      setResult(error instanceof ApiError ? error.message : 'Failed to export metadata');
     }
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'img-h4ku-backup.json';
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
-    setResult('Export downloaded.');
   });
 
   const clearLogs = () => runAction('clearLogs', async () => {
-    const token = getAuthToken();
-    if (!token) return;
-    const res = await fetch('/api/logs', {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (res.ok) {
+    try {
+      await apiRequest('/api/logs', { method: 'DELETE' });
       setLogs([]);
       setResult('Logs cleared.');
-    } else {
-      setResult(await res.text());
+    } catch (error) {
+      setResult(error instanceof ApiError ? error.message : 'Failed to clear logs');
     }
   });
 

@@ -1,28 +1,23 @@
-// Auth utilities (inlined)
-function getTtlMs(env) {
-  const days = Number(env.TOKEN_TTL_DAYS || 30);
-  if (!Number.isFinite(days) || days <= 0) return 30 * 24 * 60 * 60 * 1000;
-  return Math.round(days * 24 * 60 * 60 * 1000);
-}
-
-function createToken(secret, ttlMs) {
-  const now = Date.now();
-  const payload = { exp: now + ttlMs, iat: now };
-  const data = btoa(JSON.stringify(payload));
-  const sig = btoa(secret + data).slice(0, 16);
-  return `${data}.${sig}`;
-}
+import { getTokenTtlMs, isDevBypassEnabled, issueToken } from '../_utils/auth';
 
 export async function onRequestPost(context) {
   const { request, env } = context;
   try {
-    if (env?.DEV_BYPASS_AUTH === '1' || env?.DEV_BYPASS_AUTH === 'true') {
-      const token = createToken(env.JWT_SECRET || env.ADMIN_PASSWORD || 'dev-local', getTtlMs(env));
+    if (isDevBypassEnabled(env)) {
+      const hasSecret = Boolean(env?.JWT_SECRET || env?.ADMIN_PASSWORD);
+      const token = hasSecret
+        ? await issueToken(env, getTokenTtlMs(env))
+        : 'dev-local';
       return Response.json({ token });
     }
+
+    if (!env.ADMIN_PASSWORD) {
+      return new Response('Server is not configured', { status: 500 });
+    }
+
     const { password } = await request.json();
     if (password === env.ADMIN_PASSWORD) {
-      const token = createToken(env.JWT_SECRET || env.ADMIN_PASSWORD, getTtlMs(env));
+      const token = await issueToken(env, getTokenTtlMs(env));
       return Response.json({ token });
     }
     return new Response('Invalid password', { status: 401 });

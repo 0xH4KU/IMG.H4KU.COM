@@ -1,21 +1,7 @@
 import { listAllObjects } from '../../_utils/meta';
 import { logError } from '../../_utils/log';
-
-// Auth utilities (inlined)
-function verifyToken(token, secret) {
-  try {
-    const [data, sig] = token.split('.');
-    if (btoa(secret + data).slice(0, 16) !== sig) return false;
-    return JSON.parse(atob(data)).exp > Date.now();
-  } catch { return false; }
-}
-
-function authenticate(request, env) {
-  if (env?.DEV_BYPASS_AUTH === '1' || env?.DEV_BYPASS_AUTH === 'true') return true;
-  const auth = request.headers.get('Authorization');
-  if (!auth?.startsWith('Bearer ')) return false;
-  return verifyToken(auth.slice(7), env.JWT_SECRET || env.ADMIN_PASSWORD);
-}
+import { authenticateRequest } from '../../_utils/auth';
+import { isReservedKey } from '../../_utils/keys';
 
 function parseNumber(value) {
   if (!value && value !== 0) return null;
@@ -32,7 +18,7 @@ function statusFor(value, warn, alert) {
 export async function onRequestGet(context) {
   const { request, env } = context;
 
-  if (!authenticate(request, env)) {
+  if (!(await authenticateRequest(request, env))) {
     return new Response('Unauthorized', { status: 401 });
   }
 
@@ -41,7 +27,7 @@ export async function onRequestGet(context) {
     let count = 0;
     let size = 0;
     for (const obj of objects) {
-      if (obj.key.startsWith('.config/')) continue;
+      if (isReservedKey(obj.key)) continue;
       count += 1;
       size += obj.size;
     }

@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef, type CSSProperties } from 'react';
-import { getAuthToken, useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../contexts/AuthContext';
 import { ImageMetaProvider, TagColor } from '../contexts/ImageMetaContext';
 import { Header } from '../components/Header';
 import { Uploader } from '../components/Uploader';
@@ -12,6 +12,8 @@ import { BulkMoveModal } from '../components/BulkMoveModal';
 import { AdminToolsModal } from '../components/AdminToolsModal';
 import { ShareManagerModal } from '../components/ShareManagerModal';
 import { ImageFilters } from '../types';
+import { apiRequest } from '../utils/api';
+import { getStoredValue, setStoredValue } from '../utils/storage';
 import styles from './Admin.module.css';
 
 export function Admin() {
@@ -29,7 +31,7 @@ export function Admin() {
 
   const getStoredSidebarWidth = () => {
     if (typeof window === 'undefined') return SIDEBAR_DEFAULT_WIDTH;
-    const raw = window.localStorage.getItem(SIDEBAR_WIDTH_KEY);
+    const raw = getStoredValue(SIDEBAR_WIDTH_KEY);
     const parsed = raw ? Number(raw) : NaN;
     return clampSidebarWidth(Number.isFinite(parsed) ? parsed : SIDEBAR_DEFAULT_WIDTH);
   };
@@ -37,7 +39,7 @@ export function Admin() {
   const getStoredSidebarOpen = () => {
     if (typeof window === 'undefined') return true;
     if (window.innerWidth <= 768) return false;
-    const raw = window.localStorage.getItem(SIDEBAR_OPEN_KEY);
+    const raw = getStoredValue(SIDEBAR_OPEN_KEY);
     if (raw === 'true') return true;
     if (raw === 'false') return false;
     return true;
@@ -118,12 +120,12 @@ export function Admin() {
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    window.localStorage.setItem(SIDEBAR_OPEN_KEY, String(sidebarOpen));
+    setStoredValue(SIDEBAR_OPEN_KEY, String(sidebarOpen));
   }, [sidebarOpen]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    window.localStorage.setItem(SIDEBAR_WIDTH_KEY, String(sidebarWidth));
+    setStoredValue(SIDEBAR_WIDTH_KEY, String(sidebarWidth));
   }, [sidebarWidth]);
 
   const handleResizeMove = useCallback((event: MouseEvent | TouchEvent) => {
@@ -160,12 +162,9 @@ export function Admin() {
 
   useEffect(() => {
     const runAutoCleanup = async () => {
-      const token = getAuthToken();
-      if (!token) return;
       try {
-        await fetch('/api/maintenance/temp?auto=1&days=30', {
+        await apiRequest('/api/maintenance/temp?auto=1&days=30', {
           method: 'POST',
-          headers: { Authorization: `Bearer ${token}` },
         });
       } catch {
         // Ignore auto cleanup errors

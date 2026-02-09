@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { X, Copy, Check } from 'lucide-react';
-import { getAuthToken } from '../contexts/AuthContext';
+import { apiRequest, ApiError } from '../utils/api';
+import { resolveShareOrigin } from '../utils/url';
+import { useTransientMessage } from '../hooks/useTransientMessage';
 import styles from './ShareModal.module.css';
 
 interface ShareModalProps {
@@ -11,10 +13,10 @@ interface ShareModalProps {
   domain: 'h4ku' | 'lum';
 }
 
-const ADMIN_ORIGINS = {
-  h4ku: 'https://admin.img.h4ku.com',
-  lum: 'https://admin.img.lum.bio',
-};
+interface CreateShareResponse {
+  share?: { id?: string };
+  url?: string;
+}
 
 export function ShareModal({ open, onClose, items = [], folder = null, domain }: ShareModalProps) {
   const [title, setTitle] = useState('');
@@ -23,8 +25,9 @@ export function ShareModal({ open, onClose, items = [], folder = null, domain }:
   const [shareDomain, setShareDomain] = useState<'h4ku' | 'lum'>(domain);
   const [loading, setLoading] = useState(false);
   const [shareUrl, setShareUrl] = useState('');
-  const [copied, setCopied] = useState(false);
   const [error, setError] = useState('');
+  const { message: copiedState, show: showCopied, clear: clearCopied } = useTransientMessage(2000);
+  const copied = copiedState === 'copied';
 
   useEffect(() => {
     if (!open) return;
@@ -33,21 +36,11 @@ export function ShareModal({ open, onClose, items = [], folder = null, domain }:
     setPassword('');
     setShareDomain(domain);
     setShareUrl('');
-    setCopied(false);
+    clearCopied();
     setError('');
-  }, [open, domain]);
+  }, [open, domain, clearCopied]);
 
   if (!open) return null;
-
-  const resolveShareOrigin = (shareDomain: 'h4ku' | 'lum') => {
-    const origin = window.location.origin;
-    const host = window.location.hostname;
-    if (host === 'localhost' || host.endsWith('.pages.dev')) return origin;
-    if (shareDomain === 'lum') {
-      return host.includes('lum.bio') ? origin : ADMIN_ORIGINS.lum;
-    }
-    return host.includes('h4ku.com') ? origin : ADMIN_ORIGINS.h4ku;
-  };
 
   const createShare = async () => {
     if (items.length === 0 && !folder) {
@@ -56,36 +49,27 @@ export function ShareModal({ open, onClose, items = [], folder = null, domain }:
     }
     setLoading(true);
     setError('');
-    const token = getAuthToken();
     try {
-      const res = await fetch('/api/shares', {
+      const data = await apiRequest<CreateShareResponse>('/api/shares', {
         method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+        body: {
           title,
           description,
           password: password.trim(),
           items: items.length > 0 ? items : undefined,
           folder: items.length === 0 ? folder : undefined,
           domain: shareDomain,
-        }),
+        },
       });
-      if (res.ok) {
-        const data = await res.json();
-        const id = data.share?.id;
-        if (id) {
-          setShareUrl(`${resolveShareOrigin(shareDomain)}/share/${id}`);
-        } else {
-          setShareUrl(data.url || '');
-        }
+
+      const id = data.share?.id;
+      if (id) {
+        setShareUrl(`${resolveShareOrigin(shareDomain)}/share/${id}`);
       } else {
-        setError(await res.text());
+        setShareUrl(data.url || '');
       }
-    } catch {
-      setError('Failed to create delivery.');
+    } catch (error) {
+      setError(error instanceof ApiError ? error.message : 'Failed to create delivery.');
     } finally {
       setLoading(false);
     }
@@ -94,8 +78,7 @@ export function ShareModal({ open, onClose, items = [], folder = null, domain }:
   const copyLink = async () => {
     if (!shareUrl) return;
     await navigator.clipboard.writeText(shareUrl);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    showCopied('copied');
   };
 
   return (

@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Lock, Download, RefreshCw } from 'lucide-react';
 import { downloadZip } from '../utils/zip';
+import { DELIVERY_HOSTS, shouldUseDownloadProxy, shouldUseFileProxy } from '../utils/url';
+import { formatBytes, normalizeDownloadName } from '../utils/format';
 import styles from './Share.module.css';
 
 interface ShareInfo {
@@ -20,14 +22,14 @@ interface ShareItem {
   missing?: boolean;
 }
 
-const DOMAINS = {
-  h4ku: 'https://img.h4ku.com',
-  lum: 'https://img.lum.bio',
-};
+interface ShareResponse {
+  share?: ShareInfo;
+  items?: ShareItem[];
+}
 
 const host = window.location.hostname;
-const useFileProxy = host === 'localhost' || host.endsWith('.pages.dev');
-const useDownloadProxy = useFileProxy || host.startsWith('admin.');
+const useFileProxy = shouldUseFileProxy(host);
+const useDownloadProxy = shouldUseDownloadProxy(host);
 
 export function Share() {
   const shareId = useMemo(() => {
@@ -44,6 +46,7 @@ export function Share() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [downloading, setDownloading] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState<{ finished: number; total: number } | null>(null);
 
   const loadShare = async (pwd?: string) => {
     if (!shareId) return;
@@ -69,8 +72,8 @@ export function Share() {
         return;
       }
 
-      const data = await res.json();
-      setShare(data.share);
+      const data = await res.json() as ShareResponse;
+      setShare(data.share || null);
       setItems(data.items || []);
       setRequiresPassword(false);
     } catch {
@@ -86,33 +89,29 @@ export function Share() {
 
   const getImageUrl = (key: string) => {
     const domain = share?.domain === 'lum' ? 'lum' : 'h4ku';
-    return useFileProxy ? `/api/file?key=${encodeURIComponent(key)}` : `${DOMAINS[domain]}/${key}`;
+    return useFileProxy ? `/api/file?key=${encodeURIComponent(key)}` : `${DELIVERY_HOSTS[domain]}/${key}`;
   };
 
   const getDownloadUrl = (key: string) => {
     if (useDownloadProxy) return `/api/file?key=${encodeURIComponent(key)}`;
     const domain = share?.domain === 'lum' ? 'lum' : 'h4ku';
-    return `${DOMAINS[domain]}/${key}`;
-  };
-
-  const formatSize = (bytes?: number) => {
-    if (!bytes && bytes !== 0) return '';
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    return `${DELIVERY_HOSTS[domain]}/${key}`;
   };
 
   const downloadAll = async () => {
     const keys = items.filter(item => !item.missing).map(item => item.key);
     if (keys.length === 0) return;
     setDownloading(true);
+    setDownloadProgress({ finished: 0, total: keys.length });
     try {
       await downloadZip({
-        name: share?.title ? share.title.replace(/[^a-z0-9-_]+/gi, '-').replace(/^-+|-+$/g, '') : 'delivery',
+        name: normalizeDownloadName(share?.title || 'delivery', 'delivery'),
         keys,
         getUrl: getDownloadUrl,
+        onProgress: (finished, total) => setDownloadProgress({ finished, total }),
       });
     } finally {
+      setDownloadProgress(null);
       setDownloading(false);
     }
   };
@@ -146,7 +145,9 @@ export function Share() {
           </button>
           <button className={styles.primaryBtn} onClick={downloadAll} disabled={downloading}>
             <Download size={14} />
-            {downloading ? 'Downloading...' : 'Download All'}
+            {downloading
+              ? `Downloading${downloadProgress ? ` (${downloadProgress.finished}/${downloadProgress.total})` : '...'}`
+              : 'Download All'}
           </button>
         </div>
       </div>
@@ -184,7 +185,7 @@ export function Share() {
               )}
               <div className={styles.itemMeta}>
                 <span className={styles.itemName}>{item.key.split('/').pop()}</span>
-                <span className={styles.itemSize}>{formatSize(item.size)}</span>
+                <span className={styles.itemSize}>{formatBytes(item.size)}</span>
               </div>
             </div>
           ))}
