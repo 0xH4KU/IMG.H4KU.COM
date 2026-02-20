@@ -75,6 +75,9 @@ export function AdminToolsModal({ open, onClose }: AdminToolsModalProps) {
     fetchLogs();
   }, [open]);
 
+  const titleId = useId();
+  const trapRef = useFocusTrap<HTMLDivElement>(open);
+
   if (!open) return null;
 
   const runAction = async (name: string, fn: () => Promise<void>) => {
@@ -163,8 +166,7 @@ export function AdminToolsModal({ open, onClose }: AdminToolsModalProps) {
     return styles.ok;
   };
 
-  const titleId = useId();
-  const trapRef = useFocusTrap<HTMLDivElement>(open);
+
 
   return (
     <div className={styles.overlay} onClick={onClose}>

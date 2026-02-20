@@ -33,6 +33,9 @@ export function ShareModal({ open, onClose, items = [], folder = null, domain }:
   const copied = copiedState === 'copied';
   const { run } = useApiAction();
 
+  const titleId = useId();
+  const trapRef = useFocusTrap<HTMLDivElement>(open);
+
   useEffect(() => {
     if (!open) return;
     setTitle(`Delivery ${new Date().toLocaleDateString()}`);
@@ -45,9 +48,6 @@ export function ShareModal({ open, onClose, items = [], folder = null, domain }:
   }, [open, domain, clearCopied]);
 
   if (!open) return null;
-
-  const titleId = `share-modal-title-${useId()}`;
-  const trapRef = useFocusTrap<HTMLDivElement>(open);
 
   const createShare = async () => {
     if (items.length === 0 && !folder) {
