@@ -1,6 +1,6 @@
-import { getImageMeta, getHashMeta, getShareMeta, getFolderMeta, getMaintenanceMeta } from '../../_utils/meta';
-import { logError } from '../../_utils/log';
-import { authenticateRequest } from '../../_utils/auth';
+import { getImageMeta, getHashMeta, getShareMeta, getFolderMeta, getMaintenanceMeta } from '../../_utils/meta.ts';
+import { logError } from '../../_utils/log.js';
+import { authenticateRequest } from '../../_utils/auth.ts';
 
 function formatDate(value) {
   return value.toISOString().slice(0, 10).replace(/-/g, '');

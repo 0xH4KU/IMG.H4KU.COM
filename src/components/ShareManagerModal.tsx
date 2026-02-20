@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { X, Copy, Trash2, RefreshCw } from 'lucide-react';
 import { ConfirmModal } from './ConfirmModal';
 import { apiRequest } from '../utils/api';
@@ -7,6 +7,7 @@ import { useTransientMessage } from '../hooks/useTransientMessage';
 import { useConfirmDialog } from '../hooks/useDialogs';
 import { getErrorMessage } from '../utils/errors';
 import { useApiAction } from '../hooks/useApiAction';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 import styles from './ShareManagerModal.module.css';
 
 interface ShareManagerModalProps {
@@ -51,6 +52,9 @@ export function ShareManagerModal({ open, onClose }: ShareManagerModalProps) {
     fetchShares();
   }, [open]);
 
+  const titleId = useId();
+  const trapRef = useFocusTrap<HTMLDivElement>(open);
+
   if (!open) return null;
 
   const copyLink = async (id: string, domain?: string) => {
@@ -72,9 +76,16 @@ export function ShareManagerModal({ open, onClose }: ShareManagerModalProps) {
 
   return (
     <div className={styles.overlay} onClick={onClose}>
-      <div className={styles.modal} onClick={e => e.stopPropagation()}>
+      <div
+        ref={trapRef}
+        className={styles.modal}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        onClick={e => e.stopPropagation()}
+      >
         <div className={styles.header}>
-          <h3>Deliveries</h3>
+          <h3 id={titleId}>Deliveries</h3>
           <div className={styles.headerActions}>
             <button className={styles.iconBtn} onClick={fetchShares} disabled={loading} title="Refresh">
               <RefreshCw size={14} className={loading ? styles.spinning : ''} />

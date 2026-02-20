@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { Login } from './pages/Login';
 import { Admin } from './pages/Admin';
 import { Landing } from './pages/Landing';
@@ -52,9 +53,11 @@ function AppContent() {
 export function App() {
   return (
     <div className={styles.app}>
-      <AuthProvider>
-        <AppContent />
-      </AuthProvider>
+      <ErrorBoundary>
+        <AuthProvider>
+          <AppContent />
+        </AuthProvider>
+      </ErrorBoundary>
     </div>
   );
 }

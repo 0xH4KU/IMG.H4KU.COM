@@ -7,7 +7,7 @@ import {
   ensureSafeUploadKey,
   normalizeFileName,
   normalizeFolderPath,
-} from '../functions/_utils/keys.js';
+} from '../functions/_utils/keys.ts';
 
 test('cleanKey: trims and deduplicates slashes', () => {
   assert.equal(cleanKey(' /folder//child///file.png '), 'folder/child/file.png');

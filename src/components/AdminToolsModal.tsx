@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { X, RefreshCw, Download, Trash2 } from 'lucide-react';
 import { apiRequest } from '../utils/api';
 import { formatBytes } from '../utils/format';
 import { getErrorMessage } from '../utils/errors';
 import { useApiAction } from '../hooks/useApiAction';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 import styles from './AdminToolsModal.module.css';
 
 interface AdminToolsModalProps {
@@ -162,11 +163,21 @@ export function AdminToolsModal({ open, onClose }: AdminToolsModalProps) {
     return styles.ok;
   };
 
+  const titleId = useId();
+  const trapRef = useFocusTrap<HTMLDivElement>(open);
+
   return (
     <div className={styles.overlay} onClick={onClose}>
-      <div className={styles.modal} onClick={e => e.stopPropagation()}>
+      <div
+        ref={trapRef}
+        className={styles.modal}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        onClick={e => e.stopPropagation()}
+      >
         <div className={styles.header}>
-          <h3>Tools</h3>
+          <h3 id={titleId}>Tools</h3>
           <button className={styles.closeBtn} onClick={onClose} aria-label="Close">
             <X size={16} />
           </button>

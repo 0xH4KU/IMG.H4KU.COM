@@ -1,4 +1,4 @@
-import { cleanKey, isReservedKey } from '../_utils/keys';
+import { cleanKey, isReservedKey } from '../_utils/keys.ts';
 
 // Serve images from R2 (for local dev)
 export async function onRequestGet(context) {

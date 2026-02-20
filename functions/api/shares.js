@@ -1,8 +1,8 @@
-import { listAllObjects } from '../_utils/meta';
-import { logError } from '../_utils/log';
-import { authenticateRequest } from '../_utils/auth';
-import { getShareMeta, saveShareMeta } from '../_utils/meta';
-import { cleanKey, normalizeFolderPath, isHiddenObjectKey } from '../_utils/keys';
+import { listAllObjects } from '../_utils/meta.ts';
+import { logError } from '../_utils/log.js';
+import { authenticateRequest } from '../_utils/auth.ts';
+import { getShareMeta, saveShareMeta } from '../_utils/meta.ts';
+import { cleanKey, normalizeFolderPath, isHiddenObjectKey } from '../_utils/keys.ts';
 const ADMIN_ORIGINS = {
   h4ku: 'https://admin.img.h4ku.com',
   lum: 'https://admin.img.lum.bio',

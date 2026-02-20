@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 import styles from './TextPromptModal.module.css';
 
 interface TextPromptModalProps {
@@ -31,6 +32,9 @@ export function TextPromptModal({
     setValue(defaultValue);
   }, [open, defaultValue]);
 
+  const titleId = useId();
+  const trapRef = useFocusTrap<HTMLDivElement>(open);
+
   if (!open) return null;
 
   const submit = () => {
@@ -39,8 +43,15 @@ export function TextPromptModal({
 
   return (
     <div className={styles.overlay} onClick={onCancel}>
-      <div className={styles.modal} onClick={event => event.stopPropagation()}>
-        <h3 className={styles.title}>{title}</h3>
+      <div
+        ref={trapRef}
+        className={styles.modal}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        onClick={event => event.stopPropagation()}
+      >
+        <h3 id={titleId} className={styles.title}>{title}</h3>
         <label className={styles.field}>
           <span>{label}</span>
           <input

@@ -1,5 +1,5 @@
-import { getLogs, clearLogs, logError } from '../_utils/log';
-import { authenticateRequest } from '../_utils/auth';
+import { getLogs, clearLogs, logError } from '../_utils/log.js';
+import { authenticateRequest } from '../_utils/auth.ts';
 
 function parseNumber(value, fallback) {
   const n = Number(value);

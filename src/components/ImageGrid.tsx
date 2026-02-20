@@ -135,9 +135,19 @@ export function ImageGrid({ folder, domain, refreshKey, onRefresh, activeTag, sh
     return parts.length > 1 ? parts[0] : '';
   };
 
-  const handleContextMenu = (e: ReactMouseEvent, key: string) => {
+  const handleContextMenu = (e: ReactMouseEvent | React.KeyboardEvent, key: string) => {
     e.preventDefault();
-    setContextMenu({ x: e.clientX, y: e.clientY, key });
+    const rect = (e.target as HTMLElement).getBoundingClientRect();
+    const x = 'clientX' in e ? e.clientX : rect.left + rect.width / 2;
+    const y = 'clientY' in e ? e.clientY : rect.top + rect.height / 2;
+    setContextMenu({ x, y, key });
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent, key: string) => {
+    if (e.key === 'F10' && e.shiftKey) {
+      e.preventDefault();
+      handleContextMenu(e, key);
+    }
   };
 
   const openTagMenu = (mode: 'add' | 'remove', event: ReactMouseEvent<HTMLButtonElement>) => {
@@ -204,6 +214,8 @@ export function ImageGrid({ folder, domain, refreshKey, onRefresh, activeTag, sh
         key={img.key}
         className={`${styles.card} ${selected ? styles.cardSelected : ''}`}
         onContextMenu={e => handleContextMenu(e, img.key)}
+        onKeyDown={e => handleKeyDown(e, img.key)}
+        tabIndex={0}
       >
         <div className={styles.imageWrapper}>
           {imgFav && <Star size={14} className={styles.favStar} fill="currentColor" />}
@@ -264,6 +276,8 @@ export function ImageGrid({ folder, domain, refreshKey, onRefresh, activeTag, sh
         key={img.key}
         className={`${styles.listItem} ${selected ? styles.listSelected : ''}`}
         onContextMenu={e => handleContextMenu(e, img.key)}
+        onKeyDown={e => handleKeyDown(e, img.key)}
+        tabIndex={0}
       >
         <button
           className={`${styles.selectBtn} ${styles.listSelect} ${selected ? styles.selected : ''}`}

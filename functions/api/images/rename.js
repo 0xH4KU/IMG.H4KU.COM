@@ -1,9 +1,9 @@
-import { getImageMeta, saveImageMeta, getHashMeta, saveHashMeta, getShareMeta, saveShareMeta, getFolderMeta, saveFolderMeta } from '../../_utils/meta';
-import { logError } from '../../_utils/log';
-import { authenticateRequest } from '../../_utils/auth';
-import { cleanKey, ensureSafeObjectKey } from '../../_utils/keys';
-import { r2Head, r2MoveObject } from '../../_utils/r2';
-import { createOperationTracker } from '../../_utils/operation';
+import { getImageMeta, saveImageMeta, getHashMeta, saveHashMeta, getShareMeta, saveShareMeta, getFolderMeta, saveFolderMeta } from '../../_utils/meta.ts';
+import { logError } from '../../_utils/log.js';
+import { authenticateRequest } from '../../_utils/auth.ts';
+import { cleanKey, ensureSafeObjectKey } from '../../_utils/keys.ts';
+import { r2Head, r2MoveObject } from '../../_utils/r2.ts';
+import { createOperationTracker } from '../../_utils/operation.js';
 
 function getFolderName(key) {
   const parts = key.split('/');

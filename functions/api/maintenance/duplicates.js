@@ -1,7 +1,7 @@
-import { listAllObjects, getHashMeta, saveHashMeta, getMaintenanceMeta, saveMaintenanceMeta } from '../../_utils/meta';
-import { logError } from '../../_utils/log';
-import { authenticateRequest } from '../../_utils/auth';
-import { isReservedKey } from '../../_utils/keys';
+import { listAllObjects, getHashMeta, saveHashMeta, getMaintenanceMeta, saveMaintenanceMeta } from '../../_utils/meta.ts';
+import { logError } from '../../_utils/log.js';
+import { authenticateRequest } from '../../_utils/auth.ts';
+import { isReservedKey } from '../../_utils/keys.ts';
 
 function bytesToHex(bytes) {
   return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');

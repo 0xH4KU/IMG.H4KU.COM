@@ -1,8 +1,8 @@
-import { getHashMeta, saveHashMeta } from '../_utils/meta';
-import { moveToTrash, restoreFromTrash } from '../_utils/trash';
-import { logError } from '../_utils/log';
-import { authenticateRequest } from '../_utils/auth';
-import { cleanKey, isHiddenObjectKey, isTrashKey, ensureSafeObjectKey } from '../_utils/keys';
+import { getHashMeta, saveHashMeta } from '../_utils/meta.ts';
+import { moveToTrash, restoreFromTrash } from '../_utils/trash.js';
+import { logError } from '../_utils/log.js';
+import { authenticateRequest } from '../_utils/auth.ts';
+import { cleanKey, isHiddenObjectKey, isTrashKey, ensureSafeObjectKey } from '../_utils/keys.ts';
 
 const META_KEY = '.config/image-meta.json';
 

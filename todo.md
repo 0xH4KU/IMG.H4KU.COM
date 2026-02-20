@@ -1,66 +1,60 @@
-# Refactor TODO Checklist
+# Improvement TODO
 
-## P0 - 安全與回歸保護（先做）
+## P0 - 高衝擊（優先處理）
 
-### P0-A：測試與 CI 基礎（最優先）
-- [x] 補 token 核心流程單元測試：簽發、驗證、過期、TTL、錯誤簽章。
-- [x] 補 key sanitize 邊界測試：空值、`..`、重複斜線、保留前綴、thumb 特例。
-- [x] 建立 CI 門檻：`type-check` + `build` + `tests` 任一失敗即阻擋合併。
+### CI / 品質門檻
+- [x] CI Lint step 移除 `continue-on-error: true`。
 
-### P0-B：Legacy Token 過渡（待監測數據後決定）
-- [x] 補 legacy token 使用監測（log/計數），確認仍有多少舊 token 流量。
-- [x] 依據監測結果設定退場日期，加入 `LEGACY_TOKEN_UNTIL` 環境變數。
-- [x] 補 legacy 截止相關測試案例。
+### TypeScript 遷移（Phase 2–3）
+- [x] 建立 `functions/_types/index.d.ts`，定義 ImageMeta、ShareMeta、FolderMeta 等共用型別。
+- [x] 遷移 `functions/_utils/auth.js` → `auth.ts`。
+- [x] 遷移 `functions/_utils/keys.js` → `keys.ts`。
+- [x] 遷移 `functions/_utils/meta.js` → `meta.ts`。
+- [x] 遷移 `functions/_utils/r2.js` → `r2.ts`。
+- [x] 在 `tsconfig.json` 加入 `functions` 到 `include`。
 
-### P0-C：路徑防護補齊
-- [x] 在刪除／還原／批次操作補齊保留路徑防護，禁止 `.config/*` 與非法 key。
+### 測試覆蓋補強
+- [x] 後端 route handler 測試：用 mock R2/env 測試 `images.js`、`folders.js`、`upload.js` 關鍵路徑。
+- [x] Metadata cascade 測試：刪除/還原時 metadata cascade 正確性。
+- [ ] 前端 hooks 單元測試：`useImageActions`、`useImageSelection` 等（需加入 React Testing Library）。
+- [x] E2E 煙霧測試：upload → list → delete → trash 端對端流程。
 
-## P1 - 錯誤邊界與前端一致性（可與型別安全並行）
-- [x] 全面盤點 `apiRequest` 呼叫點，確保使用者操作皆有 `catch` 與可見錯誤提示。
-- [x] 建立統一錯誤處理 helper/hook（例如 `useApiAction`），避免各元件重複實作。
-- [x] 移除 silent catch；至少記錄 warning，關鍵流程需顯示 inline/toast 錯誤。
-- [x] 統一 `ApiError` 顯示規則，避免後端 raw error 直接暴露於 UI。
-- [x] 建立全域 401 流程：清 token、回登入頁、可選保留原操作上下文。
-- [x] 補前端錯誤情境測試：401/403/500、網路中斷、超時、blob/text/json 回應。
+## P1 - 中衝擊
 
-## P1 - 型別安全（可與錯誤邊界並行）
-- [x] 後端關鍵 util 先加 `// @ts-check` + JSDoc typedef，降低 JS 無型別風險。
-- [x] 優先處理 `meta.js`（資料核心），再擴展至其他 util。
-- [x] 為 metadata schema 建立明確型別（image/hash/share/folder/maintenance）。
-- [x] normalize 函式補輸入／輸出型別與 type guard，避免隱性欄位漂移。
-- [x] 前後端 API payload 建立共享型別，避免欄位命名與可選性不一致。
-- [x] 加 schema 契約檢查，防止舊資料與新程式不相容。
-- [x] 規劃 JS → TS 漸進遷移路線（先 util，再 route）。→ 見 `docs/TS-MIGRATION.md`
+### 程式碼品質
+- [x] ESLint `@typescript-eslint/no-explicit-any` 改為 `warn`，逐步消除 `any`。
+- [x] 加入 React Error Boundary，包覆 `<AppContent />`，避免白屏。
+- [x] 整理 `index.html` 與 `global.css` 重複樣式，`index.html` 只保留 FOUC 預防必要的初始樣式。
 
-## P2 - 架構與可維護性
-- [x] 抽離 R2 service 層（list/get/put/move/delete/meta cascade），讓 route 專注流程控制。→ 基礎版 `functions/_utils/r2.js`
-- [x] 拆分大型元件（特別是 `ImageGrid`）為資料層、虛擬清單層、動作層。→ `useImageGridData`, `useImageSelection`, `useImageActions`, `useImageGroups`
-- [x] 前後端 key/path/domain 規則收斂為單一來源，避免重複實作。→ `src/utils/keys.ts`
-- [x] 將 `prompt/confirm/alert` 逐步替換為一致 Modal UX。→ `useDialogs.ts` + `ConfirmModal` + `TextPromptModal`
-- [x] 批次操作加入可觀測性（operation id、失敗明細、可重試）。→ `functions/_utils/operation.js`
-- [x] 建立固定回歸清單：upload、share、trash、rename、move、metadata。→ `docs/REGRESSION.md`
+### 資料一致性
+- [x] Metadata 讀寫加入樂觀鎖（version/etag），防止並發更新的 race condition。
 
-## 工具鏈與品質門檻
-- [x] 補齊 `eslint` 依賴與配置，修復 lint script 無法執行問題。
-- [x] 設定 pre-commit（lint + type-check + focused tests）。→ husky + lint-staged
-- [x] 建立 staging 環境驗證流程：重大改動 production deploy 前需完整 staging 驗證。→ `docs/STAGING.md`
-- [x] 建立 PR checklist（安全、測試覆蓋、錯誤處理、文件更新）。→ `.github/pull_request_template.md`
-- [x] 建立 CI 報告輸出（測試覆蓋率、失敗分佈、警告趨勢）。→ CI workflow summary
-- [x] 關鍵 env vars 加啟動期檢查，缺漏直接告警。→ `functions/_utils/env.js`
-- [x] 規劃 nightly 驗證任務（maintenance 掃描 + 健康報告）。→ `.github/workflows/nightly.yml`
+### 路由
+- [x] 評估是否需要引入輕量 router（視未來頁面擴充需求決定）。  
+  ✅ 目前三頁（Landing/Console/Share）用 `resolveRoute()` 足夠，暫不需框架級 router。
 
-## 文件與發布管理
-- [x] 在重構文件新增「legacy token 退場計畫」與明確日期。→ 見 `docs/ENV.md` 說明
-- [x] 補環境變數文件：用途、預設值、風險、建議值。→ `docs/ENV.md`
-- [x] 補故障排查手冊：401、上傳失敗、分享異常、metadata 損壞。→ `docs/TROUBLESHOOTING.md`
-- [x] 補回滾策略：token 過渡開關、資料相容、緊急復原流程。→ `docs/ROLLBACK.md`
-- [x] 每次重構更新 changelog + 驗證紀錄，確保可追溯性。→ `docs/REFACTOR-2026-02-09.md` 第 8 節
-- [x] 下一輪 scope 切小，避免一次跨太多面向造成風險堆疊。→ 見下方「建議執行順序」
+## P2 - 持續改善
 
-## 建議執行順序
+### 效能
+- [ ] 圖片上傳/交付支援 WebP/AVIF 格式轉換。
+- [ ] Share 頁面 `<img>` 加入 `srcSet` 支援 responsive images。
 
-1. **Sprint A - P0-A**：測試骨架 + CI gate（阻擋回歸的基礎）
-2. **Sprint A - P0-B**：上線後觀察 legacy token 流量，收集數據
-3. **Sprint B**：P1 錯誤邊界 + P1 型別安全（可並行）
-4. **Sprint C**：依據 legacy 監測數據決定退場日期，完成 P0-B 剩餘項目
-5. **Sprint D**：P2 架構拆分 + UX 一致化
+### Accessibility
+- [x] Modal 加入 `role="dialog"`、`aria-modal`、focus trap。
+- [x] Context menu 加入鍵盤觸發方式（Shift+F10）。
+- [x] Share 頁面圖片 alt text 改用有意義的檔名。
+
+### 安全性
+- [x] 加入 Content Security Policy header。
+- [x] `/api/auth` 登入端點加入 rate limiting。
+- [x] 確認 CORS header 設定。  
+  ✅ API 僅同源存取，不需額外 CORS 設定。
+
+### 監控
+- [x] 加入前端錯誤追蹤（`window.onerror` + `unhandledrejection` → `/api/logs`）。
+- [x] 整合 Cloudflare Web Analytics 追蹤 Web Vitals。  
+  ⚠️ 需在 Cloudflare Dashboard 取得 Beacon token 並填入 `index.html`。
+
+### DX
+- [x] 整合 Vite dev server 與 Wrangler proxy，統一 `npm run dev`。  
+  ✅ 目前 `npm run dev`已透過 Vite 統一管理，Cloudflare Pages 部署時自動處理 Functions，無需額外整合。

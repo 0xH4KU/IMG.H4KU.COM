@@ -1,7 +1,7 @@
-import { listAllObjects } from '../../_utils/meta';
-import { logError } from '../../_utils/log';
-import { authenticateRequest } from '../../_utils/auth';
-import { isReservedKey } from '../../_utils/keys';
+import { listAllObjects } from '../../_utils/meta.ts';
+import { logError } from '../../_utils/log.js';
+import { authenticateRequest } from '../../_utils/auth.ts';
+import { isReservedKey } from '../../_utils/keys.ts';
 
 function parseNumber(value) {
   if (!value && value !== 0) return null;

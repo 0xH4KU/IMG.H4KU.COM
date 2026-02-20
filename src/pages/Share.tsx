@@ -149,7 +149,7 @@ export function Share() {
               {item.missing ? (
                 <div className={styles.missing}>Missing file</div>
               ) : (
-                <img src={getImageUrl(item.key)} alt={item.key} loading="lazy" />
+                <img src={getImageUrl(item.key)} alt={item.key.split('/').pop() || item.key} loading="lazy" />
               )}
               <div className={styles.itemMeta}>
                 <span className={styles.itemName}>{item.key.split('/').pop()}</span>

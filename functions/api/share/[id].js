@@ -1,6 +1,6 @@
-import { logError } from '../../_utils/log';
-import { listAllObjects, getShareMeta } from '../../_utils/meta';
-import { cleanKey, isHiddenObjectKey } from '../../_utils/keys';
+import { logError } from '../../_utils/log.js';
+import { listAllObjects, getShareMeta } from '../../_utils/meta.ts';
+import { cleanKey, isHiddenObjectKey } from '../../_utils/keys.ts';
 
 function bytesToBase64(bytes) {
   let binary = '';

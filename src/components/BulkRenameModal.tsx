@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useState } from 'react';
 import { X } from 'lucide-react';
 import { apiRequest } from '../utils/api';
 import { getErrorMessage } from '../utils/errors';
 import { useApiAction } from '../hooks/useApiAction';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 import styles from './BulkRenameModal.module.css';
 
 interface BulkRenameModalProps {
@@ -71,6 +72,9 @@ export function BulkRenameModal({ open, onClose, keys, onComplete }: BulkRenameM
     setError('');
   }, [open]);
 
+  const titleId = useId();
+  const trapRef = useFocusTrap<HTMLDivElement>(open);
+
   if (!open) return null;
 
   const applyRename = async () => {
@@ -105,9 +109,16 @@ export function BulkRenameModal({ open, onClose, keys, onComplete }: BulkRenameM
 
   return (
     <div className={styles.overlay} onClick={onClose}>
-      <div className={styles.modal} onClick={e => e.stopPropagation()}>
+      <div
+        ref={trapRef}
+        className={styles.modal}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        onClick={e => e.stopPropagation()}
+      >
         <div className={styles.header}>
-          <h3>Batch Rename</h3>
+          <h3 id={titleId}>Batch Rename</h3>
           <button className={styles.closeBtn} onClick={onClose} aria-label="Close">
             <X size={16} />
           </button>

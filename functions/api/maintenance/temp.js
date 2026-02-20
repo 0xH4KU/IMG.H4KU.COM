@@ -1,7 +1,7 @@
-import { listAllObjects, getImageMeta, saveImageMeta, getHashMeta, saveHashMeta, getShareMeta, saveShareMeta, getMaintenanceMeta, saveMaintenanceMeta } from '../../_utils/meta';
-import { logError } from '../../_utils/log';
-import { authenticateRequest } from '../../_utils/auth';
-import { cleanKey, isReservedKey } from '../../_utils/keys';
+import { listAllObjects, getImageMeta, saveImageMeta, getHashMeta, saveHashMeta, getShareMeta, saveShareMeta, getMaintenanceMeta, saveMaintenanceMeta } from '../../_utils/meta.ts';
+import { logError } from '../../_utils/log.js';
+import { authenticateRequest } from '../../_utils/auth.ts';
+import { cleanKey, isReservedKey } from '../../_utils/keys.ts';
 
 function parseNumber(value, fallback) {
   const n = Number(value);

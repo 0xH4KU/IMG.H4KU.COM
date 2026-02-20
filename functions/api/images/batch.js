@@ -1,10 +1,10 @@
-import { getHashMeta, saveHashMeta } from '../../_utils/meta';
-import { moveToTrash, restoreFromTrash } from '../../_utils/trash';
-import { logError } from '../../_utils/log';
-import { authenticateRequest } from '../../_utils/auth';
-import { cleanKey, ensureSafeObjectKey } from '../../_utils/keys';
-import { getImageMeta, saveImageMeta } from '../../_utils/meta';
-import { createOperationTracker } from '../../_utils/operation';
+import { getHashMeta, saveHashMeta } from '../../_utils/meta.ts';
+import { moveToTrash, restoreFromTrash } from '../../_utils/trash.js';
+import { logError } from '../../_utils/log.js';
+import { authenticateRequest } from '../../_utils/auth.ts';
+import { cleanKey, ensureSafeObjectKey } from '../../_utils/keys.ts';
+import { getImageMeta, saveImageMeta } from '../../_utils/meta.ts';
+import { createOperationTracker } from '../../_utils/operation.js';
 
 export async function onRequestPost(context) {
   const { request, env } = context;

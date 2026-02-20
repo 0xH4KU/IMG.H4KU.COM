@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { X, Copy, Check } from 'lucide-react';
 import { apiRequest } from '../utils/api';
 import { resolveShareOrigin } from '../utils/url';
 import { useTransientMessage } from '../hooks/useTransientMessage';
 import { getErrorMessage } from '../utils/errors';
 import { useApiAction } from '../hooks/useApiAction';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 import styles from './ShareModal.module.css';
 
 interface ShareModalProps {
@@ -44,6 +45,9 @@ export function ShareModal({ open, onClose, items = [], folder = null, domain }:
   }, [open, domain, clearCopied]);
 
   if (!open) return null;
+
+  const titleId = `share-modal-title-${useId()}`;
+  const trapRef = useFocusTrap<HTMLDivElement>(open);
 
   const createShare = async () => {
     if (items.length === 0 && !folder) {
@@ -86,9 +90,16 @@ export function ShareModal({ open, onClose, items = [], folder = null, domain }:
 
   return (
     <div className={styles.overlay} onClick={onClose}>
-      <div className={styles.modal} onClick={e => e.stopPropagation()}>
+      <div
+        ref={trapRef}
+        className={styles.modal}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        onClick={e => e.stopPropagation()}
+      >
         <div className={styles.header}>
-          <h3>New Delivery</h3>
+          <h3 id={titleId}>New Delivery</h3>
           <button className={styles.closeBtn} onClick={onClose} aria-label="Close">
             <X size={16} />
           </button>

@@ -53,7 +53,7 @@ export function ImageContextMenu({
     }
   }, [x, y]);
 
-  // Close on click outside or ESC
+  // Close on click outside or ESC, support arrow key navigation
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
@@ -61,11 +61,28 @@ export function ImageContextMenu({
       }
     };
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') { onClose(); return; }
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (!menuRef.current) return;
+        const items = menuRef.current.querySelectorAll<HTMLElement>('button:not([disabled])');
+        if (items.length === 0) return;
+        const current = Array.from(items).indexOf(document.activeElement as HTMLElement);
+        const next = e.key === 'ArrowDown'
+          ? (current + 1) % items.length
+          : (current - 1 + items.length) % items.length;
+        items[next]?.focus();
+      }
     };
 
     document.addEventListener('mousedown', handleClick);
     document.addEventListener('keydown', handleKeyDown);
+
+    // Auto-focus first item
+    requestAnimationFrame(() => {
+      menuRef.current?.querySelector<HTMLElement>('button')?.focus();
+    });
+
     return () => {
       document.removeEventListener('mousedown', handleClick);
       document.removeEventListener('keydown', handleKeyDown);
@@ -81,6 +98,7 @@ export function ImageContextMenu({
     <div
       ref={menuRef}
       className={styles.menu}
+      role="menu"
       style={{ left: x, top: y }}
       onClick={e => e.stopPropagation()}
     >

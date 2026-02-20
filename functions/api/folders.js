@@ -1,8 +1,8 @@
-import { getHashMeta, saveHashMeta, getShareMeta, saveShareMeta, listAllObjects, getFolderMeta, saveFolderMeta, getImageMeta, saveImageMeta } from '../_utils/meta';
-import { moveToTrash } from '../_utils/trash';
-import { logError } from '../_utils/log';
-import { authenticateRequest } from '../_utils/auth';
-import { normalizeFolderSegment, isValidFolderSegment, isHiddenObjectKey } from '../_utils/keys';
+import { getHashMeta, saveHashMeta, getShareMeta, saveShareMeta, listAllObjects, getFolderMeta, saveFolderMeta, getImageMeta, saveImageMeta } from '../_utils/meta.ts';
+import { moveToTrash } from '../_utils/trash.js';
+import { logError } from '../_utils/log.js';
+import { authenticateRequest } from '../_utils/auth.ts';
+import { normalizeFolderSegment, isValidFolderSegment, isHiddenObjectKey } from '../_utils/keys.ts';
 function normalizeFolder(name) {
   return normalizeFolderSegment(name);
 }

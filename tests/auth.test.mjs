@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { createToken, getAuthMetrics, getTokenTtlMs, issueToken, verifyToken } from '../functions/_utils/auth.js';
+import { createToken, getAuthMetrics, getTokenTtlMs, issueToken, verifyToken } from '../functions/_utils/auth.ts';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 

@@ -1,8 +1,8 @@
-import { logError } from '../../_utils/log';
-import { authenticateRequest } from '../../_utils/auth';
-import { getImageMeta, saveImageMeta } from '../../_utils/meta';
-import { cleanKey } from '../../_utils/keys';
-import { createOperationTracker } from '../../_utils/operation';
+import { logError } from '../../_utils/log.js';
+import { authenticateRequest } from '../../_utils/auth.ts';
+import { getImageMeta, saveImageMeta } from '../../_utils/meta.ts';
+import { cleanKey } from '../../_utils/keys.ts';
+import { createOperationTracker } from '../../_utils/operation.js';
 
 function normalizeTags(tags) {
   if (!Array.isArray(tags)) return [];

@@ -1,7 +1,7 @@
-import { logError } from '../_utils/log';
-import { authenticateRequest } from '../_utils/auth';
-import { getImageMeta, saveImageMeta } from '../_utils/meta';
-import { cleanKey } from '../_utils/keys';
+import { logError } from '../_utils/log.js';
+import { authenticateRequest } from '../_utils/auth.ts';
+import { getImageMeta, saveImageMeta } from '../_utils/meta.ts';
+import { cleanKey } from '../_utils/keys.ts';
 
 // GET /api/metadata - Get all metadata
 export async function onRequestGet(context) {

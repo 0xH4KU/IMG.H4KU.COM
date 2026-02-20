@@ -1,4 +1,4 @@
-import { authenticateRequest } from '../../_utils/auth';
+import { authenticateRequest } from '../../_utils/auth.ts';
 
 export async function onRequestGet(context) {
   if (await authenticateRequest(context.request, context.env)) {
