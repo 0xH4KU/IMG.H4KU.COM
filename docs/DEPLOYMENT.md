@@ -206,3 +206,77 @@ For personal use, this is typically sufficient at $0 cost.
 3. **Don't commit secrets** - Use `wrangler secret` or Dashboard Secrets
 4. **Review access logs** - Monitor for unauthorized access
 5. **Regular backups** - Export R2 data periodically
+
+---
+
+## Rollback Strategy
+
+### Quick Rollback (< 5 min)
+
+**Option A: Git Revert**
+
+```bash
+git log --oneline -10
+git checkout <commit-hash>
+npm run deploy
+```
+
+**Option B: Cloudflare Dashboard**
+
+1. Go to Pages → Select project → Deployments
+2. Find previous successful deployment
+3. Click "Rollback to this deployment"
+
+### Token Compatibility
+
+If you rollback to code that doesn't support v2 tokens, users with v2 tokens will get 401 and need to re-login. Keep `JWT_SECRET` stable during rollback.
+
+### Data Compatibility
+
+Current metadata schemas use normalize functions that:
+- Add missing fields with defaults
+- Ignore unknown fields
+- Handle type mismatches gracefully
+
+### Emergency Metadata Restore
+
+```bash
+# Download current metadata
+curl -X GET "https://api.cloudflare.com/client/v4/accounts/{account}/r2/buckets/{bucket}/objects/.config/image-meta.json" \
+  -H "Authorization: Bearer {token}" \
+  -o backup-image-meta.json
+
+# Restore from backup
+curl -X PUT "https://api.cloudflare.com/client/v4/accounts/{account}/r2/buckets/{bucket}/objects/.config/image-meta.json" \
+  -H "Authorization: Bearer {token}" \
+  -H "Content-Type: application/json" \
+  -d @backup-image-meta.json
+```
+
+### Legacy Token Control
+
+```bash
+# Allow legacy tokens until specific date
+wrangler secret put LEGACY_TOKEN_UNTIL
+# Enter: 2025-06-01T00:00:00.000Z
+
+# Block all legacy tokens immediately
+wrangler secret put LEGACY_TOKEN_UNTIL
+# Enter: 2020-01-01T00:00:00.000Z
+```
+
+### Rollback Decision Matrix
+
+| Severity | Impact | Action |
+|----------|--------|--------|
+| Critical | All users affected | Immediate rollback |
+| High | Core feature broken | Rollback within 1 hour |
+| Medium | Minor feature broken | Fix forward if possible |
+| Low | Cosmetic issue | Fix in next release |
+
+### Post-Rollback Checklist
+
+- [ ] Verify core functionality (quick smoke test)
+- [ ] Check error logs for new issues
+- [ ] Create issue to track the problem
+- [ ] Plan fix for next deployment

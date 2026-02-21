@@ -143,25 +143,29 @@ Content-Type: application/json
 
 ### Batch Download Images
 
-Download multiple images as a ZIP file. This is handled client-side by fetching images and creating a ZIP using JSZip.
+Download multiple images as a ZIP file. This is handled client-side using `fflate`.
 
 **Client Implementation**:
 ```typescript
-import JSZip from 'jszip';
+import { zipSync } from 'fflate';
 
 async function downloadAsZip(keys: string[], domain: string) {
-  const zip = new JSZip();
+  const entries: Record<string, Uint8Array> = {};
 
   for (const key of keys) {
     const url = `https://${domain}/${key}`;
-    const response = await fetch(url);
-    const blob = await response.blob();
-    zip.file(key, blob);
+    const res = await fetch(url);
+    if (res.ok) {
+      const buffer = new Uint8Array(await res.arrayBuffer());
+      const baseName = key.split('/').pop() || key;
+      entries[baseName] = buffer;
+    }
   }
 
-  const content = await zip.generateAsync({ type: 'blob' });
+  const zipped = zipSync(entries, { level: 6 });
+  const blob = new Blob([zipped], { type: 'application/zip' });
   const link = document.createElement('a');
-  link.href = URL.createObjectURL(content);
+  link.href = URL.createObjectURL(blob);
   link.download = 'images.zip';
   link.click();
 }
@@ -335,24 +339,6 @@ Content-Type: application/json
   "updated": 2
 }
 ```
-
-## Folders
-
-### List Folders
-
-```http
-GET /api/folders
-Authorization: Bearer <token>
-```
-
-**Response** (200 OK):
-```json
-{
-  "folders": ["screenshots", "wallpaper", "icons"]
-}
-```
-
-**Note**: Folders starting with `.` (like `.config`) are hidden.
 
 ## Shares (Deliveries)
 
