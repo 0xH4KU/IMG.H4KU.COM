@@ -409,7 +409,7 @@ You can also share an entire folder:
 {
   "ok": true,
   "share": { "id": "a1b2c3d4" },
-  "url": "https://share.img.h4ku.com/share/a1b2c3d4"
+  "url": "https://delivery.h4ku.com/share/a1b2c3d4"
 }
 ```
 

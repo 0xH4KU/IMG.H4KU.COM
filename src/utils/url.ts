@@ -4,8 +4,8 @@ export const DELIVERY_HOSTS = {
 };
 
 const SHARE_ORIGINS = {
-  h4ku: 'https://share.img.h4ku.com',
-  lum: 'https://share.img.lum.bio',
+  h4ku: 'https://delivery.h4ku.com',
+  lum: 'https://delivery.lum.bio',
 };
 
 function isLocalLikeHost(host: string) {

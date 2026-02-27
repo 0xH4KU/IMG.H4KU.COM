@@ -101,7 +101,7 @@ Admin Panel (write):
   User → admin.img.h4ku.com (Cloudflare Pages) → Pages Functions → R2 Bucket
 
 Share Pages (read):
-  User → share.img.h4ku.com (Cloudflare Pages) → Pages Functions → R2 Bucket
+  User → delivery.h4ku.com (Cloudflare Pages) → Pages Functions → R2 Bucket
 ```
 
 ## License

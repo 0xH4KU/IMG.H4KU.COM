@@ -15,7 +15,7 @@ This guide describes the admin UI flow for sharing, batch operations, trash, and
 1. Select images (checkbox) in the grid
 2. Use the bulk bar and click **Delivery**
 3. (Optional) set a password
-4. Copy the generated share link (uses `share.img.h4ku.com`)
+4. Copy the generated share link (uses `delivery.h4ku.com`)
 
 Share pages include:
 - **Lightbox viewer** — Click any image to enlarge, navigate with ←/→ arrows

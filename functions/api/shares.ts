@@ -6,8 +6,8 @@ import { getShareMeta, saveShareMeta } from '../_utils/meta.ts';
 import { cleanKey, normalizeFolderPath, isHiddenObjectKey } from '../_utils/keys.ts';
 
 const SHARE_ORIGINS: Record<string, string> = {
-    h4ku: 'https://share.img.h4ku.com',
-    lum: 'https://share.img.lum.bio',
+    h4ku: 'https://delivery.h4ku.com',
+    lum: 'https://delivery.lum.bio',
 };
 
 interface ShareInput {
