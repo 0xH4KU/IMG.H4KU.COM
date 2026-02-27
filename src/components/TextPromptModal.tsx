@@ -1,4 +1,5 @@
 import { useEffect, useId, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 import styles from './TextPromptModal.module.css';
 
@@ -41,7 +42,7 @@ export function TextPromptModal({
     onConfirm(value);
   };
 
-  return (
+  return createPortal(
     <div className={styles.overlay} onClick={onCancel}>
       <div
         ref={trapRef}
@@ -66,6 +67,7 @@ export function TextPromptModal({
           <button className={styles.primary} onClick={submit}>{confirmText}</button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

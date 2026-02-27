@@ -1,4 +1,5 @@
 import { useId } from 'react';
+import { createPortal } from 'react-dom';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 import styles from './ConfirmModal.module.css';
 
@@ -28,7 +29,7 @@ export function ConfirmModal({
 
   if (!open) return null;
 
-  return (
+  return createPortal(
     <div className={styles.overlay} onClick={onCancel}>
       <div
         ref={trapRef}
@@ -45,6 +46,7 @@ export function ConfirmModal({
           <button className={`${styles.primary} ${danger ? styles.danger : ''}`} onClick={onConfirm}>{confirmText}</button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
