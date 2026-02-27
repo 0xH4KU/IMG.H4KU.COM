@@ -11,6 +11,7 @@ R2 and Pages cannot share the same domain. Use separate subdomains:
 | R2 Custom Domain | `img.h4ku.com` | Direct image serving |
 | R2 Custom Domain | `img.lum.bio` | Alternative image domain |
 | Cloudflare Pages | `admin.img.h4ku.com` | Admin panel |
+| Cloudflare Pages | `share.img.h4ku.com` | Public share/delivery pages |
 
 ## Prerequisites
 
@@ -95,6 +96,7 @@ npx wrangler pages secret put ADMIN_PASSWORD --project-name=img-h4ku
 3. Enter `admin.img.h4ku.com`
 4. Follow DNS configuration prompts
 5. Wait for SSL certificate to activate
+6. Repeat steps 2-5 for `share.img.h4ku.com` (share/delivery pages)
 
 ## Step 7: Verify Deployment
 

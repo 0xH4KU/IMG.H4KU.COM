@@ -15,7 +15,12 @@ This guide describes the admin UI flow for sharing, batch operations, trash, and
 1. Select images (checkbox) in the grid
 2. Use the bulk bar and click **Delivery**
 3. (Optional) set a password
-4. Copy the generated share link
+4. Copy the generated share link (uses `share.img.h4ku.com`)
+
+Share pages include:
+- **Lightbox viewer** — Click any image to enlarge, navigate with ←/→ arrows
+- **Skeleton loading** — Smooth placeholder animations while images load
+- **Password rate limiting** — 10 attempts per 5 minutes per IP
 
 ### Share a folder
 1. Open the folder menu (three dots)
@@ -124,8 +129,9 @@ Manual verification checklist for core functionality before deployment.
 - [ ] Folder upload preserves structure
 - [ ] Thumbnail is generated
 - [ ] Upload to specific folder works
-- [ ] Large file upload (>10MB) works
+- [ ] Large file upload (>10MB) works, shows real progress %
 - [ ] Duplicate detection works
+- [ ] Rate limiting works (60/10min)
 
 ### Share / Delivery
 - [ ] Create delivery with single item

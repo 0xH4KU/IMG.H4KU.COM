@@ -54,24 +54,28 @@ Authorization: Bearer <token>
 | Name | Type | Description |
 |------|------|-------------|
 | `folder` | string | Optional. Filter by folder prefix |
+| `cursor` | string | Optional. Pagination cursor from previous response |
+| `limit` | number | Optional. Max items per page (1-100, default 50) |
 
 **Response** (200 OK):
 ```json
 {
   "images": [
     {
-      "key": "screenshots/1m2n3b4-image.png",
+      "key": "screenshots/1m2n3b4_image.png",
       "size": 102400,
       "uploaded": "2026-01-29T12:00:00.000Z"
     }
-  ]
+  ],
+  "cursor": null,
+  "hasMore": false
 }
 ```
 
 ### Delete Image
 
 ```http
-DELETE /api/images?key=screenshots/1m2n3b4-image.png
+DELETE /api/images?key=screenshots/1m2n3b4_image.png
 Authorization: Bearer <token>
 ```
 
@@ -83,7 +87,11 @@ Authorization: Bearer <token>
 **Response** (200 OK):
 ```json
 {
-  "deleted": "screenshots/1m2n3b4-image.png"
+  "ok": true,
+  "deleted": false,
+  "trashed": true,
+  "key": "screenshots/1m2n3b4_image.png",
+  "to": "trash/screenshots/1m2n3b4_image.png"
 }
 ```
 
@@ -111,11 +119,13 @@ folder: screenshots
 **Response** (200 OK):
 ```json
 {
-  "key": "screenshots/1m2n3b4-filename.png",
+  "key": "screenshots/1m2n3b4_filename.png",
   "size": 102400,
   "type": "image/png"
 }
 ```
+
+**Rate Limit**: 60 uploads per 10 minutes per IP.
 
 ### Batch Delete Images
 
@@ -126,8 +136,8 @@ Content-Type: application/json
 
 {
   "keys": [
-    "screenshots/1m2n3b4-image.png",
-    "wallpaper/5k6j7h8-bg.jpg"
+    "screenshots/1m2n3b4_image.png",
+    "wallpaper/5k6j7h8_bg.jpg"
   ]
 }
 ```
@@ -251,11 +261,11 @@ Authorization: Bearer <token>
   "version": 1,
   "updatedAt": "2026-01-29T12:00:00.000Z",
   "images": {
-    "screenshots/1m2n3b4-image.png": {
+    "screenshots/1m2n3b4_image.png": {
       "tags": ["red", "blue"],
       "favorite": true
     },
-    "wallpaper/5k6j7h8-bg.jpg": {
+    "wallpaper/5k6j7h8_bg.jpg": {
       "tags": [],
       "favorite": false
     }
@@ -271,7 +281,7 @@ Authorization: Bearer <token>
 Content-Type: application/json
 
 {
-  "key": "screenshots/1m2n3b4-image.png",
+  "key": "screenshots/1m2n3b4_image.png",
   "tags": ["red", "green"],
   "favorite": true
 }
@@ -300,7 +310,7 @@ Content-Type: application/json
 ### Delete Image Metadata
 
 ```http
-DELETE /api/metadata?key=screenshots/1m2n3b4-image.png
+DELETE /api/metadata?key=screenshots/1m2n3b4_image.png
 Authorization: Bearer <token>
 ```
 
@@ -399,7 +409,7 @@ You can also share an entire folder:
 {
   "ok": true,
   "share": { "id": "a1b2c3d4" },
-  "url": "https://admin.img.h4ku.com/share/a1b2c3d4"
+  "url": "https://share.img.h4ku.com/share/a1b2c3d4"
 }
 ```
 
@@ -528,7 +538,7 @@ Authorization: Bearer <token>
 ### Get Image File
 
 ```http
-GET /api/file?key=screenshots/1m2n3b4-image.png
+GET /api/file?key=screenshots/1m2n3b4_image.png
 Authorization: Bearer <token>
 ```
 
@@ -573,7 +583,13 @@ Tokens are custom JWT-like strings:
 
 ## Rate Limits
 
-Cloudflare Workers free tier:
+### Application Rate Limits
+| Endpoint | Limit | Window |
+|----------|-------|--------|
+| `POST /api/upload` | 60 requests | 10 minutes (per IP) |
+| `POST /api/share/:id` (password) | 10 attempts | 5 minutes (per IP) |
+
+### Cloudflare Workers Free Tier
 - 100,000 requests/day
 - 10ms CPU time per request
 

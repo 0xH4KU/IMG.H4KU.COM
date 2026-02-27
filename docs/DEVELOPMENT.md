@@ -39,17 +39,18 @@ img.h4ku.com/
 │   │   ├── auth.ts                  # Token signing/verification (HMAC-SHA256)
 │   │   ├── env.js                   # Environment variable helpers
 │   │   ├── keys.ts                  # Key/path sanitize & validation
-│   │   ├── log.js                   # Error logging utilities
-│   │   ├── meta.ts                  # Metadata CRUD & normalize
+│   │   ├── log.ts                   # Error logging utilities
+│   │   ├── meta.ts                  # Metadata CRUD & normalize (ETag optimistic locking)
 │   │   ├── operation.js             # Bulk operation helpers
 │   │   ├── r2.ts                    # R2 bucket helpers
+│   │   ├── rateLimit.ts             # IP-based rate limiting
 │   │   └── trash.js                 # Trash (soft delete) utilities
 │   └── api/
 │       ├── auth.js                  # Login (POST /api/auth)
 │       ├── auth/verify.js           # Token verification
 │       ├── file.js                  # Image proxy (dev only)
-│       ├── folders.js               # Folder CRUD
-│       ├── images.js                # Image list/delete
+│       ├── folders.ts               # Folder CRUD
+│       ├── images.ts                # Image list/delete/restore
 │       ├── images/
 │       │   ├── batch.js             # Batch delete
 │       │   ├── move.js              # Batch move
@@ -64,9 +65,9 @@ img.h4ku.com/
 │       ├── metadata.js              # Tags & favorites CRUD
 │       ├── metadata/batch.js        # Batch tag operations
 │       ├── monitoring/r2.js         # R2 storage monitoring
-│       ├── share/[id].js            # Public share access
-│       ├── shares.js                # Share management
-│       └── upload.js                # Image upload
+│       ├── share/[id].js            # Public share access (rate limited)
+│       ├── shares.ts                # Share management
+│       └── upload.ts                # Image upload (rate limited)
 ├── src/
 │   ├── components/
 │   │   ├── AdminToolsModal.tsx      # Maintenance tools modal
@@ -126,9 +127,12 @@ img.h4ku.com/
 │   ├── keys.test.mjs               # Key sanitize tests
 │   ├── images.test.mjs             # Image API tests
 │   ├── meta-cascade.test.mjs       # Metadata cascade tests
+│   ├── meta-normalize.test.mjs     # Meta normalization tests
 │   ├── e2e-smoke.test.mjs          # E2E smoke tests
 │   ├── api-client.test.mjs         # API client tests
-│   └── share-api.test.mjs          # Share API tests
+│   ├── share-api.test.mjs          # Share API tests
+│   ├── format.test.mjs             # Format utility tests
+│   └── rate-limit.test.mjs         # Rate limiting tests
 ├── index.html                       # HTML template + CSS variables + theme
 ├── package.json
 ├── tsconfig.json                    # Frontend TypeScript config
@@ -294,7 +298,7 @@ import styles from './Component.module.css';
 | `tsconfig.functions.json` | `functions/` (backend) | `allowJs: true`, Workers types |
 | `tsconfig.node.json` | Vite config | Node types |
 
-Backend utils (`_utils/`) have been fully migrated to TypeScript. Route handlers remain as JavaScript with JSDoc.
+Backend utils (`_utils/`) and core API route handlers (`upload.ts`, `images.ts`, `folders.ts`, `shares.ts`) have been fully migrated to TypeScript. Remaining route handlers use JavaScript.
 
 ---
 
@@ -303,7 +307,7 @@ Backend utils (`_utils/`) have been fully migrated to TypeScript. Route handlers
 ```bash
 npm run dev          # Vite dev server (frontend only)
 npm run build        # tsc + vite build
-npm run test         # Node test runner (7 test suites)
+npm run test         # Node test runner (10 test suites, 50 tests)
 npm run type-check   # tsc --noEmit
 npm run lint         # ESLint
 npm run deploy       # wrangler pages deploy
@@ -315,7 +319,7 @@ Pre-commit hooks (`husky` + `lint-staged`): ESLint fix + type-check on staged fi
 
 ## Testing
 
-### Automated Tests (7 suites)
+### Automated Tests (10 suites, 50 tests)
 
 ```bash
 npm run test
@@ -325,11 +329,14 @@ npm run test
 |-----------|----------|
 | `auth.test.mjs` | Token signing, verification, legacy support |
 | `keys.test.mjs` | Key sanitize, path validation |
-| `images.test.mjs` | Image API (list, delete, batch) |
+| `images.test.mjs` | Image API (list, delete, restore) |
 | `meta-cascade.test.mjs` | Metadata cascade on delete/restore |
+| `meta-normalize.test.mjs` | All meta normalization functions |
 | `e2e-smoke.test.mjs` | Upload → list → delete → trash flow |
 | `api-client.test.mjs` | API client utilities |
 | `share-api.test.mjs` | Share API endpoints |
+| `format.test.mjs` | formatBytes, normalizeDownloadName, formatDateShort |
+| `rate-limit.test.mjs` | Rate limiting (window, reset, independent IDs) |
 
 ### Manual Testing Checklist
 
@@ -384,7 +391,7 @@ localStorage.getItem('auth_token')
 
 | Cause | Solution |
 |-------|----------|
-| File too large (limit: 100MB) | Compress or split |
+| File too large (limit: 50MB) | Compress or split |
 | Invalid file name | Use alphanumeric characters |
 | R2 binding missing | Check `wrangler.toml` |
 

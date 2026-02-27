@@ -5,11 +5,11 @@ Private image hosting service built on Cloudflare Pages + R2. Zero server cost.
 ## Features
 
 ### Core Features
-- **Drag & Drop Upload** — Multi-file batch upload support (up to 50MB per file)
+- **Drag & Drop Upload** — Multi-file batch upload with real progress tracking (up to 50MB per file)
 - **Folder Organization** — Auto-create folders with R2 prefix management
 - **Dual View Modes** — Grid (icon) / List view with virtual scroll
 - **Grouping & Sorting** — By file type, upload date, or tags
-- **Search & Filter** — Quick search across images and folders
+- **Search & Filter** — Quick search with type, size range, and date range filters
 - **Finder-style Tags** — 7 colors (red, orange, yellow, green, blue, purple, gray)
 - **Favorites** — Quick access to frequently used images
 - **Cloud Sync** — Tags and favorites stored in R2, available across devices
@@ -20,6 +20,8 @@ Private image hosting service built on Cloudflare Pages + R2. Zero server cost.
 
 ### Sharing & Delivery
 - **Password-Protected Shares** — Create secure delivery links for images or folders
+- **Lightbox Viewer** — Click-to-enlarge with keyboard navigation (Esc/←/→)
+- **Skeleton Loading** — Smooth perceived performance on share pages
 - **Batch Download** — Download multiple images or entire folders as ZIP
 - **Delivery Pages** — Share collections with custom titles and descriptions
 - **Share Management** — Revoke or manage active delivery links
@@ -34,6 +36,12 @@ Private image hosting service built on Cloudflare Pages + R2. Zero server cost.
 - **Soft Delete** — Deleted images move to trash instead of permanent removal
 - **Restore** — Recover trashed images to their original folders
 - **Permanent Delete** — Permanently remove selected items or empty trash
+
+### Security & Reliability
+- **ETag Optimistic Locking** — Prevents concurrent metadata corruption via R2 conditional PUT
+- **Rate Limiting** — Upload: 60/10min, share password: 10/5min (IP-based)
+- **HSTS** — Strict-Transport-Security header enforced
+- **Error Tracking** — Frontend errors logged with deduplication, user agent, and page URL
 
 ### Maintenance & Monitoring
 - **R2 Storage Monitoring** — Track usage, object count, and set alert thresholds
@@ -53,7 +61,7 @@ Private image hosting service built on Cloudflare Pages + R2. Zero server cost.
 | Icons | Lucide React |
 | Virtual List | @tanstack/react-virtual |
 | ZIP | fflate |
-| Backend | Cloudflare Pages Functions |
+| Backend | Cloudflare Pages Functions (TypeScript) |
 | Storage | Cloudflare R2 |
 | CDN | Cloudflare (R2 Custom Domain) |
 
@@ -91,13 +99,10 @@ Image Access (read):
 
 Admin Panel (write):
   User → admin.img.h4ku.com (Cloudflare Pages) → Pages Functions → R2 Bucket
+
+Share Pages (read):
+  User → share.img.h4ku.com (Cloudflare Pages) → Pages Functions → R2 Bucket
 ```
-
-## Roadmap
-
-- [ ] 前端 hooks 單元測試（`useImageActions`、`useImageSelection` 等）
-- [ ] 圖片上傳/交付支援 WebP/AVIF 格式轉換
-- [ ] Share 頁面 `<img>` 加入 `srcSet` 支援 responsive images
 
 ## License
 
