@@ -50,11 +50,15 @@ export function useImageGridData(options: UseImageGridDataOptions): UseImageGrid
   const [hasMore, setHasMore] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const loadMoreRef = useRef<HTMLDivElement>(null);
+  const fetchIdRef = useRef(0); // generation counter to discard stale responses
   const { run } = useApiAction();
   const { getTags, isFavorite } = useImageMeta();
 
   const fetchImages = useCallback(async (append = false) => {
     if (append && (!hasMore || loadingMore)) return;
+
+    // Bump generation; stale responses will be discarded
+    const id = ++fetchIdRef.current;
 
     if (append) {
       setLoadingMore(true);
@@ -73,6 +77,10 @@ export function useImageGridData(options: UseImageGridDataOptions): UseImageGrid
 
     try {
       const data = await run(() => apiRequest<{ images?: ImageItem[]; cursor?: string | null; hasMore?: boolean }>(`/api/images?${params}`));
+
+      // Discard if a newer fetch has started
+      if (fetchIdRef.current !== id) return;
+
       if (append) {
         setImages(prev => [...prev, ...(data.images || [])]);
       } else {
@@ -81,12 +89,15 @@ export function useImageGridData(options: UseImageGridDataOptions): UseImageGrid
       setCursor(data.cursor || null);
       setHasMore(data.hasMore ?? false);
     } catch (err) {
+      if (fetchIdRef.current !== id) return;
       if (!append) {
         setError(getErrorMessage(err, 'Failed to load images'));
       }
     } finally {
-      setLoading(false);
-      setLoadingMore(false);
+      if (fetchIdRef.current === id) {
+        setLoading(false);
+        setLoadingMore(false);
+      }
     }
   }, [folder, cursor, hasMore, loadingMore, pageSize, run]);
 

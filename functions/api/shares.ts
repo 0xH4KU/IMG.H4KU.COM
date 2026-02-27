@@ -5,9 +5,9 @@ import { authenticateRequest } from '../_utils/auth.ts';
 import { getShareMeta, saveShareMeta } from '../_utils/meta.ts';
 import { cleanKey, normalizeFolderPath, isHiddenObjectKey } from '../_utils/keys.ts';
 
-const ADMIN_ORIGINS: Record<string, string> = {
-    h4ku: 'https://admin.img.h4ku.com',
-    lum: 'https://admin.img.lum.bio',
+const PUBLIC_ORIGINS: Record<string, string> = {
+    h4ku: 'https://img.h4ku.com',
+    lum: 'https://img.lum.bio',
 };
 
 interface ShareInput {
@@ -50,10 +50,7 @@ function publicShare(share: Record<string, unknown>): Record<string, unknown> {
 function resolveShareOrigin(request: Request, domain: string): string {
     const origin = new URL(request.url).origin;
     if (origin.includes('localhost') || origin.includes('.pages.dev')) return origin;
-    if (domain === 'lum') {
-        return origin.includes('lum.bio') ? origin : ADMIN_ORIGINS.lum;
-    }
-    return origin.includes('h4ku.com') ? origin : ADMIN_ORIGINS.h4ku;
+    return PUBLIC_ORIGINS[domain] || PUBLIC_ORIGINS.h4ku;
 }
 
 export async function onRequestGet(context: EventContext<Env, string, unknown>): Promise<Response> {
