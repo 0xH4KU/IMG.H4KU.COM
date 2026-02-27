@@ -2,6 +2,12 @@
  * Lightweight frontend error tracking.
  * Captures uncaught errors and unhandled promise rejections,
  * batches them, and posts to /api/logs.
+ *
+ * Features:
+ * - User agent and page URL included for easier debugging
+ * - Deduplication: same error message is only queued once per batch
+ * - Batched sends every 5s, capped at 20 entries
+ * - Flush on page hide (visibilitychange)
  */
 
 const BATCH_INTERVAL_MS = 5_000;
@@ -14,13 +20,30 @@ interface ErrorEntry {
     line?: number;
     col?: number;
     stack?: string;
+    url?: string;
+    userAgent?: string;
 }
 
 const queue: ErrorEntry[] = [];
+const seen = new Set<string>();
 let timer: ReturnType<typeof setTimeout> | null = null;
 
+/** Deduplicate key: message + source + line */
+function dedupeKey(entry: ErrorEntry): string {
+    return `${entry.message}|${entry.source || ''}|${entry.line || 0}`;
+}
+
 function enqueue(entry: ErrorEntry) {
-    if (queue.length >= MAX_QUEUE) return; // prevent memory buildup
+    if (queue.length >= MAX_QUEUE) return;
+
+    const key = dedupeKey(entry);
+    if (seen.has(key)) return;
+    seen.add(key);
+
+    // Enrich with context
+    entry.url = window.location.href;
+    entry.userAgent = navigator.userAgent;
+
     queue.push(entry);
     if (!timer) {
         timer = setTimeout(flush, BATCH_INTERVAL_MS);
@@ -31,6 +54,7 @@ async function flush() {
     timer = null;
     if (queue.length === 0) return;
     const batch = queue.splice(0);
+    seen.clear();
     try {
         const token = localStorage.getItem('token');
         await fetch('/api/logs', {

@@ -63,7 +63,7 @@ export function Uploader({ folder, onUploadComplete }: UploaderProps) {
 
   const uploadSingleFile = useCallback(async (uf: UploadFile) => {
     setFiles(prev =>
-      prev.map(f => (f.id === uf.id ? { ...f, status: 'uploading', error: undefined } : f))
+      prev.map(f => (f.id === uf.id ? { ...f, status: 'uploading', progress: 0, error: undefined } : f))
     );
     setActiveCount(count => count + 1);
 
@@ -73,51 +73,65 @@ export function Uploader({ folder, onUploadComplete }: UploaderProps) {
     formData.append('folder', uf.targetFolder);
 
     try {
-      // Generate thumbnail in parallel with upload preparation
+      // Generate thumbnail in parallel with upload
       const thumbnailPromise = generateThumbnail(uf.file);
 
-      const res = await fetch('/api/upload', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-        body: formData,
+      const result = await new Promise<UploadResult>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', '/api/upload');
+        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable) {
+            const pct = Math.round((e.loaded / e.total) * 100);
+            setFiles(prev =>
+              prev.map(f => (f.id === uf.id ? { ...f, progress: pct } : f))
+            );
+          }
+        };
+
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try {
+              resolve(JSON.parse(xhr.responseText) as UploadResult);
+            } catch {
+              reject(new Error('Invalid response'));
+            }
+          } else {
+            reject(new Error(xhr.responseText || 'Upload failed'));
+          }
+        };
+
+        xhr.onerror = () => reject(new Error('Upload failed'));
+        xhr.send(formData);
       });
 
-      if (res.ok) {
-        const result = await res.json() as UploadResult;
+      // Upload thumbnail if generated
+      const thumbnail = await thumbnailPromise;
+      if (thumbnail) {
+        const thumbKey = `.thumbs/${result.key}`;
+        const thumbFormData = new FormData();
+        thumbFormData.append('file', thumbnail, 'thumb.webp');
+        thumbFormData.append('key', thumbKey);
 
-        // Upload thumbnail if generated
-        const thumbnail = await thumbnailPromise;
-        if (thumbnail) {
-          const thumbKey = `.thumbs/${result.key}`;
-          const thumbFormData = new FormData();
-          thumbFormData.append('file', thumbnail, 'thumb.webp');
-          thumbFormData.append('key', thumbKey);
-
-          fetch('/api/upload', {
-            method: 'POST',
-            headers: { Authorization: `Bearer ${token}` },
-            body: thumbFormData,
-          }).catch(() => { /* Thumbnail upload failure is non-critical */ });
-        }
-
-        setFiles(prev =>
-          prev.map(f =>
-            f.id === uf.id ? { ...f, status: 'success', progress: 100 } : f
-          )
-        );
-        onUploadComplete();
-      } else {
-        const error = await res.text();
-        setFiles(prev =>
-          prev.map(f =>
-            f.id === uf.id ? { ...f, status: 'error', error } : f
-          )
-        );
+        fetch('/api/upload', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+          body: thumbFormData,
+        }).catch(() => { /* Thumbnail upload failure is non-critical */ });
       }
-    } catch {
+
       setFiles(prev =>
         prev.map(f =>
-          f.id === uf.id ? { ...f, status: 'error', error: 'Upload failed' } : f
+          f.id === uf.id ? { ...f, status: 'success', progress: 100 } : f
+        )
+      );
+      onUploadComplete();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Upload failed';
+      setFiles(prev =>
+        prev.map(f =>
+          f.id === uf.id ? { ...f, status: 'error', error: message } : f
         )
       );
     } finally {
@@ -313,7 +327,7 @@ export function Uploader({ folder, onUploadComplete }: UploaderProps) {
               <span className={styles.fileName}>{f.relativePath}</span>
               <span className={styles.fileStatus}>
                 {f.status === 'uploading' && (
-                  <span className={styles.uploading}>Uploading...</span>
+                  <span className={styles.uploading}>{f.progress > 0 ? `${f.progress}%` : 'Uploading...'}</span>
                 )}
                 {f.status === 'pending' && (
                   <span className={styles.pending}>{paused ? 'Paused' : 'Queued'}</span>

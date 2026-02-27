@@ -11,6 +11,32 @@ import type {
 } from '../_types/index';
 import { r2Get, r2List, r2Put } from './r2.ts';
 
+// ─── ETag-based Optimistic Locking ──────────────────────────────────────
+// R2 etag is captured on read and attached to the data object via a Symbol
+// key (invisible to JSON.stringify). On write, writeJsonWithVersion uses
+// R2 conditional PUT (onlyIf: { etagMatches }) so the write only succeeds
+// if no other request modified the object since we read it.
+const ETAG_KEY: unique symbol = Symbol('r2_etag');
+
+function attachEtag<T>(data: T, etag: string | null): T {
+    if (data && typeof data === 'object' && etag) {
+        Object.defineProperty(data, ETAG_KEY, {
+            value: etag,
+            writable: false,
+            enumerable: false,
+            configurable: false,
+        });
+    }
+    return data;
+}
+
+function getEtag(data: unknown): string | undefined {
+    if (data && typeof data === 'object') {
+        return (data as Record<symbol, unknown>)[ETAG_KEY] as string | undefined;
+    }
+    return undefined;
+}
+
 export const IMAGE_META_KEY = '.config/image-meta.json';
 export const HASH_META_KEY = '.config/image-hashes.json';
 export const SHARE_META_KEY = '.config/share-meta.json';
@@ -139,13 +165,19 @@ export function normalizeMaintenanceMeta(input: unknown): MaintenanceMeta {
     };
 }
 
-async function readJson<T>(env: Env, key: string, fallback: () => T): Promise<T> {
+interface ReadResult<T> {
+    data: T;
+    etag: string | null;
+}
+
+async function readJson<T>(env: Env, key: string, fallback: () => T): Promise<ReadResult<T>> {
     try {
         const obj = await r2Get(env, key);
-        if (!obj) return fallback();
-        return JSON.parse(await obj.text()) as T;
+        if (!obj) return { data: fallback(), etag: null };
+        const data = JSON.parse(await obj.text()) as T;
+        return { data, etag: obj.etag };
     } catch {
-        return fallback();
+        return { data: fallback(), etag: null };
     }
 }
 
@@ -167,18 +199,24 @@ async function writeJsonWithVersion(
     key: string,
     data: VersionedMeta,
 ): Promise<void> {
-    // Read current version from R2
-    const current = await readJson<{ version?: number }>(env, key, () => ({ version: 0 }));
-    const currentVersion = current.version ?? 0;
+    const etag = getEtag(data);
 
-    // If someone else bumped the version since we read, reject
-    if (data.version < currentVersion) {
-        throw new MetaVersionConflictError(key);
+    data.version = (data.version ?? 0) + 1;
+    data.updatedAt = nowIso();
+
+    const options: R2PutOptions = {};
+    if (etag) {
+        options.onlyIf = { etagMatches: etag };
     }
 
-    data.version = currentVersion + 1;
-    data.updatedAt = nowIso();
-    await r2Put(env, key, JSON.stringify(data));
+    const result = await r2Put(env, key, JSON.stringify(data), options);
+
+    // R2 returns null when the conditional check fails (object was modified
+    // since we read it). Surface this as a version conflict so callers can
+    // decide whether to retry or report the error.
+    if (result === null) {
+        throw new MetaVersionConflictError(key);
+    }
 }
 
 async function writeJson(env: Env, key: string, data: Record<string, unknown>): Promise<void> {
@@ -191,7 +229,8 @@ async function writeJson(env: Env, key: string, data: Record<string, unknown>): 
 }
 
 export async function getImageMeta(env: Env): Promise<ImageMeta> {
-    return normalizeImageMeta(await readJson(env, IMAGE_META_KEY, () => ({ images: {} })));
+    const { data, etag } = await readJson(env, IMAGE_META_KEY, () => ({ images: {} }));
+    return attachEtag(normalizeImageMeta(data), etag);
 }
 
 export async function saveImageMeta(env: Env, meta: ImageMeta): Promise<void> {
@@ -199,7 +238,8 @@ export async function saveImageMeta(env: Env, meta: ImageMeta): Promise<void> {
 }
 
 export async function getHashMeta(env: Env): Promise<HashMeta> {
-    return normalizeHashMeta(await readJson(env, HASH_META_KEY, () => ({ hashes: {} })));
+    const { data, etag } = await readJson(env, HASH_META_KEY, () => ({ hashes: {} }));
+    return attachEtag(normalizeHashMeta(data), etag);
 }
 
 export async function saveHashMeta(env: Env, meta: HashMeta): Promise<void> {
@@ -207,7 +247,8 @@ export async function saveHashMeta(env: Env, meta: HashMeta): Promise<void> {
 }
 
 export async function getShareMeta(env: Env): Promise<ShareMeta> {
-    return normalizeShareMeta(await readJson(env, SHARE_META_KEY, () => ({ shares: {} })));
+    const { data, etag } = await readJson(env, SHARE_META_KEY, () => ({ shares: {} }));
+    return attachEtag(normalizeShareMeta(data), etag);
 }
 
 export async function saveShareMeta(env: Env, meta: ShareMeta): Promise<void> {
@@ -215,7 +256,8 @@ export async function saveShareMeta(env: Env, meta: ShareMeta): Promise<void> {
 }
 
 export async function getFolderMeta(env: Env): Promise<FolderMeta> {
-    return normalizeFolderMeta(await readJson(env, FOLDER_META_KEY, () => ({ folders: [] })));
+    const { data, etag } = await readJson(env, FOLDER_META_KEY, () => ({ folders: [] }));
+    return attachEtag(normalizeFolderMeta(data), etag);
 }
 
 export async function saveFolderMeta(env: Env, meta: FolderMeta): Promise<void> {
@@ -223,7 +265,8 @@ export async function saveFolderMeta(env: Env, meta: FolderMeta): Promise<void> 
 }
 
 export async function getMaintenanceMeta(env: Env): Promise<MaintenanceMeta> {
-    return normalizeMaintenanceMeta(await readJson(env, MAINT_META_KEY, () => ({ lastRuns: {} })));
+    const { data, etag } = await readJson(env, MAINT_META_KEY, () => ({ lastRuns: {} }));
+    return attachEtag(normalizeMaintenanceMeta(data), etag);
 }
 
 export async function saveMaintenanceMeta(env: Env, meta: MaintenanceMeta): Promise<void> {

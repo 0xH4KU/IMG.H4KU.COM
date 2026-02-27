@@ -1,4 +1,4 @@
-import { getLogs, clearLogs, logError } from '../_utils/log.js';
+import { getLogs, clearLogs, logError } from '../_utils/log.ts';
 import { authenticateRequest } from '../_utils/auth.ts';
 
 function parseNumber(value, fallback) {

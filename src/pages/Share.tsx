@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Lock, Download, RefreshCw } from 'lucide-react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
+import { Lock, Download, RefreshCw, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { downloadZip } from '../utils/zip';
 import { DELIVERY_HOSTS, shouldUseDownloadProxy, shouldUseFileProxy } from '../utils/url';
 import { formatBytes, normalizeDownloadName } from '../utils/format';
@@ -28,6 +28,10 @@ export function Share() {
   const [error, setError] = useState('');
   const [downloading, setDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState<{ finished: number; total: number } | null>(null);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [loadedImages, setLoadedImages] = useState<Set<string>>(() => new Set());
+
+  const validItems = useMemo(() => items.filter(item => !item.missing), [items]);
 
   const loadShare = async (pwd?: string) => {
     if (!shareId) return;
@@ -54,6 +58,27 @@ export function Share() {
   useEffect(() => {
     loadShare();
   }, [shareId]);
+
+  // Lightbox keyboard navigation
+  useEffect(() => {
+    if (lightboxIndex === null) return;
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setLightboxIndex(null);
+      if (e.key === 'ArrowLeft') setLightboxIndex(i => i !== null && i > 0 ? i - 1 : i);
+      if (e.key === 'ArrowRight') setLightboxIndex(i => i !== null && i < validItems.length - 1 ? i + 1 : i);
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [lightboxIndex, validItems.length]);
+
+  const openLightbox = useCallback((key: string) => {
+    const idx = validItems.findIndex(item => item.key === key);
+    if (idx >= 0) setLightboxIndex(idx);
+  }, [validItems]);
+
+  const handleImgLoad = useCallback((key: string) => {
+    setLoadedImages(prev => new Set(prev).add(key));
+  }, []);
 
   const getImageUrl = (key: string) => {
     const domain = share?.domain === 'lum' ? 'lum' : 'h4ku';
@@ -149,7 +174,15 @@ export function Share() {
               {item.missing ? (
                 <div className={styles.missing}>Missing file</div>
               ) : (
-                <img src={getImageUrl(item.key)} alt={item.key.split('/').pop() || item.key} loading="lazy" />
+                <div className={`${styles.imgWrap}${loadedImages.has(item.key) ? ` ${styles.loaded}` : ''}`}>
+                  <img
+                    src={getImageUrl(item.key)}
+                    alt={item.key.split('/').pop() || item.key}
+                    loading="lazy"
+                    onClick={() => openLightbox(item.key)}
+                    onLoad={() => handleImgLoad(item.key)}
+                  />
+                </div>
               )}
               <div className={styles.itemMeta}>
                 <span className={styles.itemName}>{item.key.split('/').pop()}</span>
@@ -157,6 +190,40 @@ export function Share() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {lightboxIndex !== null && validItems[lightboxIndex] && (
+        <div className={styles.lightbox} onClick={() => setLightboxIndex(null)}>
+          <img
+            src={getImageUrl(validItems[lightboxIndex].key)}
+            alt={validItems[lightboxIndex].key.split('/').pop() || ''}
+            onClick={e => e.stopPropagation()}
+          />
+          <button className={styles.lightboxClose} onClick={() => setLightboxIndex(null)} aria-label="Close">
+            <X size={18} />
+          </button>
+          {lightboxIndex > 0 && (
+            <button
+              className={`${styles.lightboxNav} ${styles.lightboxPrev}`}
+              onClick={e => { e.stopPropagation(); setLightboxIndex(i => (i ?? 1) - 1); }}
+              aria-label="Previous"
+            >
+              <ChevronLeft size={20} />
+            </button>
+          )}
+          {lightboxIndex < validItems.length - 1 && (
+            <button
+              className={`${styles.lightboxNav} ${styles.lightboxNext}`}
+              onClick={e => { e.stopPropagation(); setLightboxIndex(i => (i ?? 0) + 1); }}
+              aria-label="Next"
+            >
+              <ChevronRight size={20} />
+            </button>
+          )}
+          <div className={styles.lightboxMeta}>
+            {lightboxIndex + 1} / {validItems.length} · {validItems[lightboxIndex].key.split('/').pop()}
+          </div>
         </div>
       )}
     </div>

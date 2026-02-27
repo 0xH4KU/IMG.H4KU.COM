@@ -1,4 +1,4 @@
-import { logError } from '../../_utils/log.js';
+import { logError } from '../../_utils/log.ts';
 import { authenticateRequest } from '../../_utils/auth.ts';
 import { getImageMeta, saveImageMeta } from '../../_utils/meta.ts';
 import { cleanKey } from '../../_utils/keys.ts';

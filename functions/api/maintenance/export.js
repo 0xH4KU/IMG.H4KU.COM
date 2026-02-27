@@ -1,5 +1,5 @@
 import { getImageMeta, getHashMeta, getShareMeta, getFolderMeta, getMaintenanceMeta } from '../../_utils/meta.ts';
-import { logError } from '../../_utils/log.js';
+import { logError } from '../../_utils/log.ts';
 import { authenticateRequest } from '../../_utils/auth.ts';
 
 function formatDate(value) {

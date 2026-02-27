@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { onRequestGet, onRequestDelete, onRequestPost } from '../functions/api/images.js';
+import { onRequestGet, onRequestDelete, onRequestPost } from '../functions/api/images.ts';
 
 // ─── Mock helpers ──────────────────────────────────────────────────────
 

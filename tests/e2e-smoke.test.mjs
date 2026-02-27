@@ -8,8 +8,8 @@ import test from 'node:test';
  * Uses the actual route handlers with a mock R2 layer.
  */
 
-import { onRequestPost as uploadHandler } from '../functions/api/upload.js';
-import { onRequestGet as listHandler, onRequestDelete as deleteHandler, onRequestPost as restoreHandler } from '../functions/api/images.js';
+import { onRequestPost as uploadHandler } from '../functions/api/upload.ts';
+import { onRequestGet as listHandler, onRequestDelete as deleteHandler, onRequestPost as restoreHandler } from '../functions/api/images.ts';
 
 // ─── Mock R2 ───────────────────────────────────────────────────────────
 

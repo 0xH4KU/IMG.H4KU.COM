@@ -1,6 +1,7 @@
-import { logError } from '../../_utils/log.js';
+import { logError } from '../../_utils/log.ts';
 import { listAllObjects, getShareMeta } from '../../_utils/meta.ts';
 import { cleanKey, isHiddenObjectKey } from '../../_utils/keys.ts';
+import { checkRateLimit, getClientIp, rateLimitResponse } from '../../_utils/rateLimit.ts';
 
 function bytesToBase64(bytes) {
   let binary = '';
@@ -47,6 +48,8 @@ async function resolveShareKeys(env, share) {
   if (!Array.isArray(share?.items)) return [];
   return Array.from(new Set(share.items.map(cleanKey).filter(Boolean)));
 }
+
+const SHARE_PASSWORD_RATE_LIMIT = { limit: 10, windowMs: 5 * 60 * 1000 }; // 10 attempts per 5 min
 
 export async function onRequestGet(context) {
   const { env, params } = context;
@@ -97,6 +100,11 @@ export async function onRequestPost(context) {
       const items = await buildItems(env, keys);
       return Response.json({ share: publicShare(share), items });
     }
+
+    // Rate-limit password attempts per IP + share combo
+    const ip = getClientIp(request);
+    const rl = checkRateLimit(`share-pwd:${ip}:${id}`, SHARE_PASSWORD_RATE_LIMIT);
+    if (!rl.allowed) return rateLimitResponse(rl.retryAfterMs);
 
     const body = await request.json();
     const password = typeof body.password === 'string' ? body.password : '';

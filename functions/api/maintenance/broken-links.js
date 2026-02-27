@@ -1,5 +1,5 @@
 import { listAllObjects, getImageMeta, getHashMeta, getShareMeta } from '../../_utils/meta.ts';
-import { logError } from '../../_utils/log.js';
+import { logError } from '../../_utils/log.ts';
 import { authenticateRequest } from '../../_utils/auth.ts';
 import { isReservedKey } from '../../_utils/keys.ts';
 

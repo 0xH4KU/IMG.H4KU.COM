@@ -1,6 +1,6 @@
 import { getHashMeta, saveHashMeta } from '../../_utils/meta.ts';
 import { moveToTrash, restoreFromTrash } from '../../_utils/trash.js';
-import { logError } from '../../_utils/log.js';
+import { logError } from '../../_utils/log.ts';
 import { authenticateRequest } from '../../_utils/auth.ts';
 import { cleanKey, ensureSafeObjectKey } from '../../_utils/keys.ts';
 import { getImageMeta, saveImageMeta } from '../../_utils/meta.ts';
