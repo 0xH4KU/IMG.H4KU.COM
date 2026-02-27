@@ -3,9 +3,9 @@ export const DELIVERY_HOSTS = {
   lum: 'https://img.lum.bio',
 };
 
-const ADMIN_ORIGINS = {
-  h4ku: 'https://admin.img.h4ku.com',
-  lum: 'https://admin.img.lum.bio',
+const SHARE_ORIGINS = {
+  h4ku: 'https://share.img.h4ku.com',
+  lum: 'https://share.img.lum.bio',
 };
 
 function isLocalLikeHost(host: string) {
@@ -26,9 +26,5 @@ export function resolveShareOrigin(domain: 'h4ku' | 'lum', location = window.loc
 
   if (isLocalLikeHost(host)) return origin;
 
-  if (domain === 'lum') {
-    return host.includes('lum.bio') ? origin : ADMIN_ORIGINS.lum;
-  }
-
-  return host.includes('h4ku.com') ? origin : ADMIN_ORIGINS.h4ku;
+  return SHARE_ORIGINS[domain] || SHARE_ORIGINS.h4ku;
 }
