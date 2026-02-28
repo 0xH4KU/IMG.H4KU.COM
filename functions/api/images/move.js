@@ -4,6 +4,7 @@ import { authenticateRequest } from '../../_utils/auth.ts';
 import { cleanKey, normalizeFolderPath, ensureSafeObjectKey } from '../../_utils/keys.ts';
 import { r2Head, r2MoveObject } from '../../_utils/r2.ts';
 import { createOperationTracker } from '../../_utils/operation.js';
+import { moveThumb } from '../../_utils/thumbs.ts';
 
 function getBaseName(key) {
   const parts = key.split('/');
@@ -80,6 +81,9 @@ export async function onRequestPost(context) {
 
         moved.push(pair);
         tracker.addSuccess(pair.from, { to: pair.to });
+
+        // Cascade move thumbnail
+        await moveThumb(env, pair.from, pair.to);
 
         if (meta.images && meta.images[pair.from]) {
           meta.images[pair.to] = meta.images[pair.from];

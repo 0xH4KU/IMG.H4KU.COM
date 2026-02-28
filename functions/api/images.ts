@@ -4,6 +4,7 @@ import { moveToTrash, restoreFromTrash } from '../_utils/trash.js';
 import { logError } from '../_utils/log.ts';
 import { authenticateRequest } from '../_utils/auth.ts';
 import { cleanKey, isHiddenObjectKey, isTrashKey, ensureSafeObjectKey } from '../_utils/keys.ts';
+import { deleteThumb } from '../_utils/thumbs.ts';
 
 const META_KEY = '.config/image-meta.json';
 
@@ -76,6 +77,9 @@ export async function onRequestDelete(context: EventContext<Env, string, unknown
         if (result.action === 'missing') {
             return new Response('Not found', { status: 404 });
         }
+
+        // Cascade delete thumbnail
+        await deleteThumb(env, key);
 
         // Cascade delete metadata
         try {

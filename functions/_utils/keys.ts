@@ -16,10 +16,7 @@ export function isReservedKey(key: string): boolean {
 }
 
 export function isHiddenObjectKey(key: string): boolean {
-    return key === '.config'
-        || key === '.thumbs'
-        || key.startsWith('.config/')
-        || key.startsWith('.thumbs/');
+    return key.startsWith('.');
 }
 
 export function isTrashKey(key: string): boolean {

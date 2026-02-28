@@ -4,6 +4,7 @@ import { moveToTrash } from '../_utils/trash.js';
 import { logError } from '../_utils/log.ts';
 import { authenticateRequest } from '../_utils/auth.ts';
 import { normalizeFolderSegment, isValidFolderSegment, isHiddenObjectKey } from '../_utils/keys.ts';
+import { deleteThumb, moveThumb } from '../_utils/thumbs.ts';
 
 function normalizeFolder(name: string): string {
     return normalizeFolderSegment(name);
@@ -159,6 +160,9 @@ export async function onRequestPut(context: EventContext<Env, string, unknown>):
             });
             await env.R2.delete(obj.key);
 
+            // Cascade move thumbnail
+            await moveThumb(env, obj.key, newKey);
+
             if (updatedImages[obj.key]) {
                 updatedImages[newKey] = updatedImages[obj.key];
                 delete updatedImages[obj.key];
@@ -225,6 +229,8 @@ export async function onRequestDelete(context: EventContext<Env, string, unknown
             for (const obj of objects) {
                 const result = await moveToTrash(env, obj.key);
                 if (result.action !== 'missing') results.push(result);
+                // Cascade delete thumbnail
+                await deleteThumb(env, obj.key);
             }
 
             const meta = await getImageMeta(env);

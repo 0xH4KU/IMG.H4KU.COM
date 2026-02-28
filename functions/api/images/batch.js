@@ -5,6 +5,7 @@ import { authenticateRequest } from '../../_utils/auth.ts';
 import { cleanKey, ensureSafeObjectKey } from '../../_utils/keys.ts';
 import { getImageMeta, saveImageMeta } from '../../_utils/meta.ts';
 import { createOperationTracker } from '../../_utils/operation.js';
+import { deleteThumb } from '../../_utils/thumbs.ts';
 
 export async function onRequestPost(context) {
   const { request, env } = context;
@@ -48,6 +49,11 @@ export async function onRequestPost(context) {
         } else {
           tracker.addSuccess(key, { action: result.action, to: result.to });
           results.push(result);
+
+          // Cascade delete thumbnail for trashed/deleted images
+          if (action === 'delete') {
+            await deleteThumb(env, key);
+          }
         }
       } catch (err) {
         tracker.addFailed(key, err instanceof Error ? err.message : String(err));
